@@ -7,7 +7,7 @@
 - 所属阶段：**执行层**
 - 职责：Fallback 逻辑、Compaction 处理、调用 `runEmbeddedPiAgent`
 - 文件：`src/auto-reply/reply/agent-runner-execution.ts`
-- 行数：~500
+- 行数：~2078
 
 ---
 

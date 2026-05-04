@@ -7,7 +7,7 @@
 - 所属阶段：**编排层**
 - 职责：队列决策、预压缩、Agent 执行、结果构造、调用 `runAgentTurnWithFallback`
 - 文件：`src/auto-reply/reply/agent-runner.ts`
-- 行数：~980
+- 行数：~1869
 
 ---
 

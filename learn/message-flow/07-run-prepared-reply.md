@@ -7,7 +7,7 @@
 - 所属阶段：**准备层**
 - 职责：Prompt 构建、Silent 处理、队列决策、调用 `runReplyAgent`
 - 文件：`src/auto-reply/reply/get-reply-run.ts`
-- 行数：~717
+- 行数：~1059
 
 ---
 

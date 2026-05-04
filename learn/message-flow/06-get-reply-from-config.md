@@ -7,7 +7,7 @@
 - 所属阶段：**准备层**
 - 职责：模型选择、会话初始化、指令解析、调用 `runPreparedReply`
 - 文件：`src/auto-reply/reply/get-reply.ts`
-- 行数：~508
+- 行数：~680
 
 ---
 

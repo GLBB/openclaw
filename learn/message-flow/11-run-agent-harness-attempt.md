@@ -7,7 +7,7 @@
 - 所属阶段：**Harness 层**
 - 职责：Harness 选择、日志记录、调用 `runAgentHarnessV2LifecycleAttempt`
 - 文件：`src/agents/harness/selection.ts`
-- 行数：~50
+- 行数：~325
 
 ---
 

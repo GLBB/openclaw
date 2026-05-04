@@ -9,7 +9,7 @@
 - 文件：`src/agents/harness/v2.ts`
 - 行数：~256
 
-**关键说明**：PI Harness 的 `send()` 方法内部调用 `runEmbeddedAttempt`（`pi-embedded-runner/run/attempt.ts`，约 3000 行），这是整个消息处理链路中最复杂的函数，包含：
+**关键说明**：PI Harness 的 `send()` 方法内部调用 `runEmbeddedAttempt`（`pi-embedded-runner/run/attempt.ts`，约 3700 行），这是整个消息处理链路中最复杂的函数，包含：
 
 - Workspace/Sandbox 准备
 - Skills 和 Tools 加载
@@ -99,7 +99,7 @@ type EmbeddedRunAttemptParams = {
 3. **Send（发送）** - **核心执行阶段**
    - 调用 `harness.send(session)`
    - **对于 PI Harness**：内部调用 `runEmbeddedAttempt(params)`
-     - 这是整个链路最复杂的函数（~3000 行）
+     - 这是整个链路最复杂的函数（~3700 行）
      - 内部步骤详见下方 "4.3 send() 内部详解"
    - 返回：`EmbeddedRunAttemptResult`
    - async：是
@@ -482,6 +482,6 @@ Final Response
 ---
 
 > **文件路径**: `src/agents/harness/v2.ts:187`
-> **核心实现**: `src/agents/pi-embedded-runner/run/attempt.ts:704` (runEmbeddedAttempt, ~3000 行)
+> **核心实现**: `src/agents/pi-embedded-runner/run/attempt.ts:704` (runEmbeddedAttempt, ~3700 行)
 > **所属步骤**: 主调用链第 12 步
 > **分析版本**: 2026-05-04 (更新：补充 send() 内部详解)

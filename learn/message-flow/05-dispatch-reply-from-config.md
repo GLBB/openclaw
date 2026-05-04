@@ -7,7 +7,7 @@
 - 所属阶段：**分发层**
 - 职责：路由决策、快速路径、Hook 执行、调用 `getReplyFromConfig`
 - 文件：`src/auto-reply/reply/dispatch-from-config.ts`
-- 行数：~1215
+- 行数：~1549
 
 ---
 

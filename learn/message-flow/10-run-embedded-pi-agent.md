@@ -7,7 +7,7 @@
 - 所属阶段：**Pi 层**
 - 职责：模型解析、认证选择、Harness 选择、调用 `runAgentHarnessAttempt`
 - 文件：`src/agents/pi-embedded-runner/run.ts`
-- 行数：~600
+- 行数：~2649
 
 ---
 
