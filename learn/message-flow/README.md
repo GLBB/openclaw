@@ -242,34 +242,20 @@ Layer 4: runReplyAgent            → LLM 调用、结果构造
 │  6 个阶段:                                                   │
 │  [A] 初始化: workspace/sandbox/skills                       │
 │  [B] Tools: createOpenClawCodingTools + MCP/LSP + 过滤       │
-│  [C] ★ PI Agent Session:                                    │
+│  [C] ★ PI Agent Session 创建:                               │
 │      ├── SessionManager.fromFile ← @mariozechner/pi-agent   │
 │      └── createAgentSession ← @mariozechner/pi-agent        │
-│          └── 返回 AgentSession，管理 conversation loop      │
-│  [D] Prompt: systemPrompt + bootstrap files                 │
-│  [E] StreamFn: register → 包装 → subscribe → PI Session     │
+│          └── 返回 AgentSession                              │
+│  [D] Prompt 构建: systemPrompt + bootstrap files             │
+│  [E] ★ 执行流程:                                             │
+│      ├── subscribeEmbeddedPiSession                         │
+│      │   └── session.subscribe(handler) ← 注册处理器        │
+│      └── activeSession.prompt() ← ★ 启动对话循环            │
+│          └── streamFn → Provider.streamCompletion           │
 │  [F] 结果: 分类 + 统计 + 清理                                │
 │                                                              │
 │  输出: EmbeddedRunAttemptResult                              │
 │        { assistantTexts, toolMetas, usage }                  │
-└─────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────┐
-│  ★ PI Agent Session Conversation Loop                       │
-│  来源: @mariozechner/pi-coding-agent                        │
-│                                                              │
-│  流程:                                                       │
-│  1. subscribeEmbeddedPiSession → session.subscribe(handler) │
-│     └── 注册事件处理器（接收 message_update/tool_execution）│
-│                                                              │
-│  2. activeSession.prompt() → 启动对话循环                   │
-│     └── 循环: streamFn() → Provider.streamCompletion        │
-│         ├── text chunk → message_update 事件                │
-│         ├── toolCall → executeToolCall → 继续循环 ↺         │
-│         └── finishReason → 结束 ✓                           │
-│                                                              │
-│  ★ 核心: PI Agent 管理 LLM 对话循环                         │
 └─────────────────────────────────────────────────────────────┘
         │
         ▼
