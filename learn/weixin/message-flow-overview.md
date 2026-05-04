@@ -487,18 +487,169 @@ runEmbeddedPiAgent
         └── 运行 Harness → runAgentHarnessAttempt
 ```
 
-### 第11-12站：适配层
+### 第11站：Harness 选择与适配
 
 ```
-V2 Lifecycle 适配
+runAgentHarnessAttempt
         │
-        ├── prepare() → 准备资源
-        ├── start() → 启动生命周期
-        ├── send() → 调用核心执行
-        ├── resolveOutcome() → 结果分类
+        ├── 【选择 Harness】哪个引擎执行？
+        │   │
+        │   ├── selectAgentHarnessDecision()
+        │   │   │
+        │   │   ├── 输入：provider, model, agentHarnessId
+        │   │   │
+        │   │   ├── 决策逻辑：
+        │   │   │   ├── pinned：用户显式指定 harness
+        │   │   │   ├── forced_pi：配置强制用 PI
+        │   │   │   ├── forced_plugin：配置强制用插件
+        │   │   │   ├── auto_plugin：自动匹配插件 harness
+        │   │   │   └── auto_pi：无匹配，用 PI
+        │   │   │
+        │   │   ├── 候选列表：
+        │   │   │   ├── PI Harness（priority: 0）
+        │   │   │   ├── Plugin Harness（priority: 100+）
+        │   │   │   └── 按优先级排序
+        │   │   │
+        │   │   └── 输出：
+        │   │   ├── harness: AgentHarness
+        │   │   ├── selectedHarnessId: "pi" | "codex" | ...
+        │   │   ├── selectedReason: 为什么选这个？
+        │   │   └── candidates: 所有候选及其优先级
+        │   │
+        │   ├── 为什么有多个 Harness？
+        │   │   │
+        │   │   ├── PI Harness：通用，支持所有模型
+        │   │   ├── Plugin Harness：特定模型优化
+        │   │   │   ├── Codex Harness：专门处理 codex provider
+        │   │   │   ├── 可能有自己的 runAttempt 实现
+        │   │   │   ├── 可能有自己的 compact/reset 逻辑
+        │   │   │   └── 更高优先级（priority: 100）
+        │   │   │
+        │   │   └── 不同模型可能需要不同的执行方式
+        │   │
+        │   └── 【V2 适配】统一接口
+        │   │   │
+        │   │   ├── adaptAgentHarnessToV2(harness)
+        │   │   │   │
+        │   │   ├── 为什么需要适配？
+        │   │   │   ├── V1 Harness（旧接口）：
+        │   │   │   │   └── 只有 runAttempt() 方法
+        │   │   │   │   └── 一次性执行
+        │   │   │   │
+        │   │   ├── V2 Harness（新接口）：
+        │   │   │   │   ├── prepare() → 准备
+        │   │   │   │   ├── start() → 启动
+        │   │   │   │   ├── send() → 执行（核心）
+        │   │   │   │   ├── resolveOutcome() → 结果
+        │   │   │   │   └── cleanup() → 清理
+        │   │   │   │   └── 四阶段生命周期
+        │   │   │   │
+        │   │   └── 适配 = 包装 V1 成 V2
+        │   │   └── V2.send() 内部调用 V1.runAttempt()
+        │   │
+        │   └── 输出：AgentHarnessV2（统一的四阶段接口）
         │
-        └── cleanup() → 清理资源
+        └── 传给第12站
 ```
+
+**一句话**：选择合适的执行引擎，并适配成统一的四阶段接口。
+
+### 第12站：V2 生命周期执行
+
+```
+runHarnessV2LifecycleAttempt
+        │
+        │  执行 Harness 的四阶段生命周期
+        │  V2 是统一的执行框架
+        │
+        ├── 【阶段1: prepare】准备资源
+        │   │
+        │   ├── harness.prepare(params)
+        │   │   │
+        │   ├── 对于 PI Harness：
+        │   │   │   ├── 仅标记 lifecycleState = "prepared"
+        │   │   │   └── 不做实际操作（V1 适配）
+        │   │   │
+        │   ├── 对于原生 V2 Harness：
+        │   │   │   ├── 可能构建 Prompt
+        │   │   │   ├── 可能初始化 Tools
+        │   │   │   └── 依赖具体实现
+        │   │   │
+        │   └── 输出：{ harnessId, params, lifecycleState: "prepared" }
+        │
+        ├── 【阶段2: start】启动生命周期
+        │   │
+        │   ├── harness.start(prepared)
+        │   │   │
+        │   ├── 对于 PI Harness：
+        │   │   │   └── 仅标记 lifecycleState = "started"
+        │   │   │
+        │   ├── 对于原生 V2 Harness：
+        │   │   │   ├── 可能初始化 Session
+        │   │   │   ├── 可能加载数据
+        │   │   │   └── 依赖具体实现
+        │   │   │
+        │   └── 输出：{ harnessId, params, lifecycleState: "started" }
+        │
+        ├── 【阶段3: send】★ 核心执行
+        │   │
+        │   ├── harness.send(started)
+        │   │   │
+        │   ├── 对于 PI Harness（V1 适配）：
+        │   │   │   │
+        │   │   │   └── send() 内部调用 runAttempt()
+        │   │   │   └── runAttempt → runEmbeddedAttempt（第13站）
+        │   │   │   └── 这是真正的执行！
+        │   │   │   │
+        │   │   └── 对于原生 V2 Harness：
+        │   │   │   └── 自定义的执行逻辑
+        │   │   │   └── 调用特定 API
+        │   │   │
+        │   ├── async：是（等待执行完成）
+        │   │
+        │   └── 输出：EmbeddedRunAttemptResult
+        │   └── { assistantTexts, toolMetas, usage, classification }
+        │
+        ├── 【阶段4: resolveOutcome】结果分类
+        │   │
+        │   ├── harness.resolveOutcome(result)
+        │   │   │
+        │   ├── classifyRunResult()
+        │   │   │   ├── "ok" → 成功
+        │   │   │   ├── "error" → 失败
+        │   │   │   ├── "aborted" → 用户中断
+        │   │   │   ├── "timeout" → 超时
+        │   │   │   └── "yielded" → yield 检测
+        │   │   │
+        │   ├── applyClassification()
+        │   │   └── 标记最终的 outcome
+        │   │
+        │   └── 输出：最终状态
+        │
+        ├── 【阶段5: cleanup】清理资源
+        │   │
+        │   ├── harness.cleanup()
+        │   │   │
+        │   ├── 清理临时文件
+        │   ├── 释放锁
+        │   ├── 关闭连接
+        │   │
+        │   └── 无论成功失败，都执行 cleanup
+        │
+        └── 返回结果 → 第13站的输出
+```
+
+**关键理解**：
+
+| 阶段           | V1 适配（PI Harness） | 原生 V2 Harness       |
+| -------------- | --------------------- | --------------------- |
+| prepare        | 仅标记状态            | 可能构建 Prompt/Tools |
+| start          | 仅标记状态            | 可能初始化 Session    |
+| send           | ★ 调用 runAttempt     | 自定义执行            |
+| resolveOutcome | classifyRunResult     | 自定义分类            |
+| cleanup        | 清理资源              | 自定义清理            |
+
+**一句话**：执行四阶段生命周期，send() 是真正的核心执行。
 
 ### 第13站：核心执行站（PI Agent 入口）
 
