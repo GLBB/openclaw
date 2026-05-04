@@ -500,10 +500,15 @@ V2 Lifecycle 适配
         └── cleanup() → 清理资源
 ```
 
-### 第13站：核心执行站（最关键！）
+### 第13站：核心执行站（PI Agent 入口）
+
+> **重要**：从这一站开始，进入 @mariozechner/pi-coding-agent 的世界。
+> runEmbeddedAttempt 是 OpenClaw 对 PI Agent 的封装，核心对话循环由 PI Agent 管理。
 
 ```
 runEmbeddedAttempt（~3700行核心代码）
+        │
+        │  ★ PI Agent Session 是对话循环的核心对象
         │
         ├── [阶段A] 初始化
         │   ├── workspace 设置
@@ -511,15 +516,32 @@ runEmbeddedAttempt（~3700行核心代码）
         │   └── skills 加载
         │
         ├── [阶段B] 工具准备
-        │   ├── 核心工具：read/write/edit/grep/exec/web_search...
+        │   │
+        │   ├── createOpenClawCodingTools ← ★ OpenClaw 工具集
+        │   │   ├── read/write/edit/grep/exec/web_search...
+        │   │   └── 这些工具会传给 PI Agent
+        │   │
         │   ├── MCP 工具（外部服务）
         │   ├── LSP 工具（代码补全）
+        │   │
+        │   └── applyEmbeddedAttemptToolsAllow ← 工具过滤
+        │   └── 根据授权决定最终可用的工具列表
         │
         ├── [阶段C] ★ PI Agent Session 创建
         │   │
-        │   └── 创建 AgentSession（来自 @mariozechner/pi-coding-agent）
-        │       │
-        │       └── 这个对象管理整个对话循环
+        │   ├── SessionManager.fromFile ← @mariozechner/pi-coding-agent
+        │   │   └── 加载 session 文件（对话历史）
+        │   │
+        │   ├── createAgentSession ← @mariozechner/pi-coding-agent
+        │   │   └── 创建 AgentSession 对象
+        │   │   │
+        │   │   └── 这个对象管理整个对话循环：
+        │   │       ├── agent.streamFn ← LLM 调用函数
+        │   │       ├── conversation history ← 对话历史
+        │   │       ├── tool registry ← 工具注册表
+        │   │       └── event handlers ← 事件处理器
+        │   │
+        │   └── OpenClaw 包装：activeSession = wrapSession()
         │
         ├── [阶段D] ★ System Prompt 构建
         │   │
@@ -534,24 +556,65 @@ runEmbeddedAttempt（~3700行核心代码）
         │   │   ├── Provider 特定内容
         │   │   │
         │   │   └── 输出：完整 System Prompt（几千字符）
+        │   │   └── 这个 Prompt 会传给 PI Agent
         │   │
         │   ├── Bootstrap Files（知识注入）
         │   ├── Cache Boundary（缓存优化）
         │   │
         │   └── transformProviderSystemPrompt() ← Provider 转换
         │
-        ├── [阶段E] ★ 注册事件处理器
+        ├── [阶段E] ★ 注册 PI Agent 事件处理器
         │   │
-        │   └── session.subscribe(handler)
-        │       │
-        │       └── 注册：收到文本怎么处理？收到工具调用怎么处理？
+        │   ├── subscribeEmbeddedPiSession ← OpenClaw 包装
+        │   │   │
+        │   │   └── session.subscribe(handler)
+        │   │       │
+        │   │       └── 注册 PI Agent 事件处理器：
+        │   │           ├── message_start → 开始生成
+        │   │           ├── message_update → 流式文本块
+        │   │           ├── message_end → 消息完成
+        │   │           ├── tool_execution_start → 工具开始
+        │   │           ├── tool_execution_update → 工具进度
+        │   │           ├── tool_execution_end → 工具完成
+        │   │           ├── agent_start → Agent 启动
+        │   │           ├── agent_end → Agent 结束
+        │   │           ├── compaction_start → 压缩开始
+        │   │           ├── compaction_end → 压缩完成
+        │   │
+        │   └── 事件驱动：PI Agent 发事件，OpenClaw 处理
         │
-        └── [阶段E-2] ★ 启动对话循环
+        ├── [阶段E-2] ★ 注册 streamFn（LLM 调用函数）
+        │   │
+        │   ├── registerProviderStreamForModel
+        │   │   └── providerStreamFn = Provider.streamCompletion
+        │   │   └── （函数引用，尚未调用）
+        │   │
+        │   ├── resolveEmbeddedAgentStreamFn
+        │   │   └── 包装 providerStreamFn
+        │   │   └── 添加 Provider 特定的转换
+        │   │
+        │   └── session.agent.streamFn = streamFn
+        │   └── PI Agent 内部会调用这个函数
+        │
+        └── [阶段E-3] ★ 启动 PI Agent 对话循环
             │
-            └── activeSession.prompt() ← 此时才真正开始！
+            └── activeSession.prompt(userPrompt)
                 │
-                └── 进入 PI Agent Conversation Loop
+                │  ★ 此时才真正开始！PI Agent 接管控制
+                │
+                └── 进入 PI Agent Conversation Loop（第14站）
 ```
+
+**关键区分**：
+
+| 职责          | OpenClaw                    | PI Agent          |
+| ------------- | --------------------------- | ----------------- |
+| 工具创建      | createOpenClawCodingTools   | 接收工具列表      |
+| Session 创建  | 调用 createAgentSession     | 管理 Session 对象 |
+| System Prompt | buildEmbeddedSystemPrompt   | 接收 Prompt 文本  |
+| 事件处理      | subscribeEmbeddedPiSession  | 发送事件          |
+| streamFn      | Provider.streamCompletion   | 内部调用          |
+| 对话循环      | activeSession.prompt() 启动 | while 循环管理    |
 
 ### 第14站：PI Agent 对话循环
 
