@@ -284,13 +284,117 @@ Layer 4: runReplyAgent            → LLM 调用、结果构造
 └─────────────────────────────────────────────────────────────┘
 ```
 
+PI Agent Conversation Loop 处理流式响应后，输出流向 ReplyDispatcher：
+
+```
+PI Agent 输出 → ReplyDispatcher 输入
+│
+├── 流式过程中:
+│   └── message_update 事件 → dispatcher.sendBlockReply(chunk)
+│       └── 实时更新飞书卡片
+│
+└── 完成后:
+    └── EmbeddedRunAttemptResult { assistantTexts, toolMetas, usage }
+        │
+        └── 结果逐层返回 (13→12→11→10→9→8→5→6→7)
+        │
+        └── ReplyPayload { text, model, provider, usage }
+            │
+            └── dispatcher.sendFinalReply(payload) → [跳转到 (15)]
+```
+
 ### 阶段 4：回复发送（步骤 15-16）
+
+阶段 4 接收 PI Agent 的输出，经过多层处理，最终发送给飞书用户。
+
+#### PI Agent 输出到 ReplyDispatcher 的完整链路
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  PI Agent Session 输出                                                       │
+│                                                                              │
+│  subscribeEmbeddedPiSession 返回:                                            │
+│  ├── assistantTexts: string[]        → 文本回复片段                         │
+│  ├── toolMetas: ToolMeta[]           → 工具执行元数据                       │
+│  ├── usage: TokenUsage               → Token 使用统计                       │
+│  └── finishReason: string            → 结束原因                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (13) runEmbeddedAttempt 结果处理                                            │
+│                                                                              │
+│  ├── classifyRunResult()              → 结果分类                             │
+│  │   └── "ok" | "error" | "aborted" | "timeout"                              │
+│  │                                                                           │
+│  ├── emitDiagnosticRunCompleted()     → 诊断事件                             │
+│  │                                                                           │
+│  └── 返回 EmbeddedRunAttemptResult                                           │
+│      { assistantTexts, toolMetas, usage, classification }                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (12 → 11 → 10 → 9) 结果逐层返回                                             │
+│                                                                              │
+│  runHarnessV2LifecycleAttempt.resolveOutcome()                               │
+│      └── applyClassification() → 标记最终状态                               │
+│                                                                              │
+│  runEmbeddedPiAgent()                                                        │
+│      └── 返回 PiAgentRunResult                                               │
+│                                                                              │
+│  runAgentTurnWithFallback()                                                  │
+│      └── 处理 fallback 结果                                                  │
+│      └── 返回 AgentTurnResult                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (8) runReplyAgent 结果构造                                                   │
+│                                                                              │
+│  ├── constructReplyPayload()           → 构建 ReplyPayload                  │
+│  │   ├── assistantTexts.join()        → 合并文本                            │
+│  │   ├── resolveOutcome()             → 结果状态                            │
+│  │   └── { text, model, provider, usage, toolMetas }                        │
+│  │                                                                           │
+│  └── 流式输出（并行处理）                                                     │
+│      │                                                                       │
+│      ├── onBlockReply(chunk)           → 流式更新                           │
+│      │   └── dispatcher.sendBlockReply()                                    │
+│      │       └── 实时更新飞书卡片                                            │
+│      │                                                                       │
+│      └── onToolResult(result)          → 工具结果                           │
+│          └── dispatcher.sendToolResult()                                    │
+│              └── 飞书：不显示（返回 false）                                   │
+│              └── 其他渠道：可能显示                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (5 → 6 → 7) ReplyPayload 返回                                               │
+│                                                                              │
+│  runPreparedReply()                                                          │
+│      └── 返回 ReplyPayload                                                   │
+│                                                                              │
+│  getReplyFromConfig()                                                        │
+│      └── 返回 ReplyPayload                                                   │
+│                                                                              │
+│  dispatchReplyFromConfig()                                                   │
+│      └── dispatcher.sendFinalReply(payload) → [步骤 15]                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 步骤 15-16：ReplyDispatcher 发送
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  (15) ReplyDispatcher                                       │
 │  文件: feishu/src/reply-dispatcher.ts                       │
 │  作用: 回复分发（Block/Final Reply）                        │
+│                                                              │
+│  输入来源:                                                   │
+│  ├── 流式: PI Agent message_update 事件                     │
+│  └── 最终: ReplyPayload (来自完整链路)                     │
 │                                                              │
 │  sendBlockReply(chunk) → 流式更新飞书卡片                   │
 │  sendFinalReply(payload) → 最终完整回复                     │
@@ -396,83 +500,6 @@ PI Agent Session 的输出需要经过多层处理才能发送给用户。
     │
     └──→ sendFinalReply(完整回复) ← 发送完整交互式卡片
     │       └── 用户看到最终消息
-```
-
-### 输出到发送的完整链路
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  PI Agent Session 输出                                                       │
-│                                                                              │
-│  subscribeEmbeddedPiSession 返回:                                            │
-│  ├── assistantTexts: string[]        → 文本回复片段                         │
-│  ├── toolMetas: ToolMeta[]           → 工具执行元数据                       │
-│  ├── usage: TokenUsage               → Token 使用统计                       │
-│  └── finishReason: string            → 结束原因                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (13) runEmbeddedAttempt 结果处理                                            │
-│                                                                              │
-│  ├── classifyRunResult()              → 结果分类                             │
-│  │   └── "ok" | "error" | "aborted" | "timeout"                              │
-│  │                                                                           │
-│  ├── emitDiagnosticRunCompleted()     → 诊断事件                             │
-│  │                                                                           │
-│  └── 返回 EmbeddedRunAttemptResult                                           │
-│      { assistantTexts, toolMetas, usage, classification }                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (12 → 11 → 10 → 9) 结果逐层返回                                             │
-│                                                                              │
-│  runHarnessV2LifecycleAttempt.resolveOutcome()                               │
-│      └── applyClassification() → 标记最终状态                               │
-│                                                                              │
-│  runEmbeddedPiAgent()                                                        │
-│      └── 返回 PiAgentRunResult                                               │
-│                                                                              │
-│  runAgentTurnWithFallback()                                                  │
-│      └── 处理 fallback 结果                                                  │
-│      └── 返回 AgentTurnResult                                                │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (8) runReplyAgent 结果构造                                                   │
-│                                                                              │
-│  ├── constructReplyPayload()           → 构建 ReplyPayload                  │
-│  │   ├── assistantTexts.join()        → 合并文本                            │
-│  │   ├── resolveOutcome()             → 结果状态                            │
-│  │   └── { text, model, provider, usage, toolMetas }                        │
-│  │                                                                           │
-│  └── 流式输出（并行处理）                                                     │
-│      │                                                                       │
-│      ├── onBlockReply(chunk)           → 流式更新                           │
-│      │   └── dispatcher.sendBlockReply()                                    │
-│      │       └── 实时更新飞书卡片                                            │
-│      │                                                                       │
-│      └── onToolResult(result)          → 工具结果                           │
-│          └── dispatcher.sendToolResult()                                    │
-│              └── 飞书：不显示（返回 false）                                   │
-│              └── 其他渠道：可能显示                                          │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (5 → 6 → 7) ReplyPayload 返回                                               │
-│                                                                              │
-│  runPreparedReply()                                                          │
-│      └── 返回 ReplyPayload                                                   │
-│                                                                              │
-│  getReplyFromConfig()                                                        │
-│      └── 返回 ReplyPayload                                                   │
-│                                                                              │
-│  dispatchReplyFromConfig()                                                   │
-│      └── dispatcher.sendFinalReply(payload) → [跳转到 阶段 4]                │
-└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Block Reply vs Final Reply
