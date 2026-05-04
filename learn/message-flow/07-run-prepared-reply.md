@@ -2,12 +2,15 @@
 
 #### 1. 函数定位（在整体链路中的作用）
 
-**执行准备器**：负责准备 Agent 执行所需的所有运行参数，包括 Prompt 构建、Silent 处理、队列状态解析、Thinking 级别验证，并调用下游 Agent 编排器。它是消息处理链路的**第 3 层执行准备**。
+**执行准备器**：负责准备 Agent 执行所需的所有运行参数，包括辅助 Prompt 上下文、Silent 处理、队列状态解析、Thinking 级别验证，并调用下游 Agent 编排器。它是消息处理链路的**第 3 层执行准备**。
 
 - 所属阶段：**准备层**
-- 职责：Prompt 构建、Silent 处理、队列决策、调用 `runReplyAgent`
+- 职责：辅助上下文准备、Silent 处理、队列决策、调用 `runReplyAgent`
 - 文件：`src/auto-reply/reply/get-reply-run.ts`
 - 行数：~1059
+
+> **注意**：核心 System Prompt 在 `runEmbeddedAttempt` 的 `buildEmbeddedSystemPrompt()` 中构建，
+> 本层只准备辅助上下文（如群介绍、聊天上下文），作为 `extraSystemPrompt` 参数传递。
 
 ---
 
@@ -110,8 +113,9 @@ type RunPreparedReplyParams = {
      - 调用 `buildGroupIntro()`
    - async：否
 
-6. **构建元系统提示**
+6. **构建辅助元提示**
    - 调用 `buildInboundMetaSystemPrompt()`
+   - 说明：生成 inbound 消息元信息，非核心 System Prompt
    - async：否
 
 7. **构建 Exec Override 提示**
@@ -128,6 +132,7 @@ type RunPreparedReplyParams = {
    - 调用 `buildInboundUserContextPrefix()`
    - 调用 `applySessionHints()`
    - 调用 `buildReplyPromptBodies()`
+   - 说明：组装 `extraSystemPromptParts`，传递给下游
    - async：是
 
 10. **解析 Thinking 级别**
@@ -172,13 +177,19 @@ RunPreparedReplyParams
  → SilentReplySettings
  → TypingPolicy
  → ChatContext + GroupIntro
- → PromptBodies
+ → extraSystemPromptParts（辅助上下文）
  → ThinkingLevel
  → QueueSettings
  → QueueState
  → FollowupRun
  → runReplyAgent()
- → ReplyPayload
+```
+
+> **说明**：`extraSystemPromptParts` 仅包含辅助上下文（群介绍、聊天上下文等），
+> 核心 System Prompt 在 `runEmbeddedAttempt.buildEmbeddedSystemPrompt()` 中构建。
+> → runReplyAgent()
+> → ReplyPayload
+
 ```
 
 ---
@@ -186,51 +197,53 @@ RunPreparedReplyParams
 #### 5. 数据流
 
 ```
+
 RunPreparedReplyParams {
-    ctx, sessionCtx, cfg, agentId,
-    provider, model, typing, ...
+ctx, sessionCtx, cfg, agentId,
+provider, model, typing, ...
 }
-    │
-    ▼ resolvePromptSessionContextForSystemEvent()
+│
+▼ resolvePromptSessionContextForSystemEvent()
 TemplateContext (for prompt)
-    │
-    ▼ resolveSilentReplySettings()
+│
+▼ resolveSilentReplySettings()
 SilentReplySettings { policy, rewrite }
-    │
-    ▼ buildDirectChatContext() / buildGroupChatContext()
+│
+▼ buildDirectChatContext() / buildGroupChatContext()
 ChatContext: "Direct chat context..."
-    │
-    ▼ buildReplyPromptBodies()
+│
+▼ buildReplyPromptBodies()
 PromptBodies {
-    prefixedCommandBody,
-    queuedBody,
-    transcriptCommandBody
+prefixedCommandBody,
+queuedBody,
+transcriptCommandBody
 }
-    │
-    ▼ resolveQueueSettings()
+│
+▼ resolveQueueSettings()
 QueueSettings {
-    mode: "run",
-    debounceMs: 0,
-    cap: 1
+mode: "run",
+debounceMs: 0,
+cap: 1
 }
-    │
-    ▼ FollowupRun
+│
+▼ FollowupRun
 FollowupRun {
-    prompt: queuedBody,
-    transcriptPrompt: transcriptCommandBody,
-    run: {
-        agentId, sessionId, provider, model,
-        thinkLevel, verboseLevel, ...
-    }
+prompt: queuedBody,
+transcriptPrompt: transcriptCommandBody,
+run: {
+agentId, sessionId, provider, model,
+thinkLevel, verboseLevel, ...
 }
-    │
-    ▼ runReplyAgent()
+}
+│
+▼ runReplyAgent()
 ReplyPayload {
-    text: "Agent reply",
-    model: "glm-5",
-    usage: { ... }
+text: "Agent reply",
+model: "glm-5",
+usage: { ... }
 }
-```
+
+````
 
 ---
 
@@ -330,7 +343,7 @@ sequenceDiagram
     Prep->>Agent: runReplyAgent({ followupRun, ... })
     Agent-->>Prep: ReplyPayload
     Prep-->>GetReply: ReplyPayload
-```
+````
 
 ---
 

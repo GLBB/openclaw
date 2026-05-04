@@ -64,7 +64,7 @@
 ```
 Layer 1: dispatchReplyFromConfig  → 路由决策、快速路径
 Layer 2: getReplyFromConfig       → 模型选择、会话初始化
-Layer 3: runPreparedReply         → Prompt 构建、执行准备
+Layer 3: runPreparedReply         → 执行准备、队列策略
 Layer 4: runReplyAgent            → LLM 调用、结果构造
 ```
 

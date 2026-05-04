@@ -148,8 +148,8 @@ getReplyFromConfig
 ```
 runPreparedReply
         │
-        ├── 构建 System Prompt（AI的角色设定）
-        ├── 加载 Bootstrap 文件（注入关键知识）
+        ├── 解析执行参数（队列策略、压缩策略）
+        ├── 决定是否使用预压缩（对话太长？）
         ├── 准备媒体附件（图片、音频）
         │
         └── 传给第四棒
@@ -234,10 +234,24 @@ runEmbeddedAttempt（~3700行核心代码）
         │       │
         │       └── 这个对象管理整个对话循环
         │
-        ├── [阶段D] Prompt 构建
-        │   ├── System Prompt（角色设定）
+        ├── [阶段D] ★ System Prompt 构建
+        │   │
+        │   ├── buildSystemPromptParams()
+        │   │   └── 收集运行时信息：OS、Node版本、模型、Shell、时间
+        │   │
+        │   ├── buildEmbeddedSystemPrompt() ← ★ 核心组装
+        │   │   ├── 工具描述列表
+        │   │   ├── workspace 信息
+        │   │   ├── skills 提示
+        │   │   ├── runtime 信息（时间、操作系统）
+        │   │   ├── Provider 特定内容
+        │   │   │
+        │   │   └── 输出：完整 System Prompt（几千字符）
+        │   │
         │   ├── Bootstrap Files（知识注入）
         │   ├── Cache Boundary（缓存优化）
+        │   │
+        │   └── transformProviderSystemPrompt() ← Provider 转换
         │
         ├── [阶段E] ★ 注册事件处理器
         │   │
