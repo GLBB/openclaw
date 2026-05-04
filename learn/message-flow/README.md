@@ -250,21 +250,35 @@ Layer 4: runReplyAgent            → LLM 调用、结果构造
 │  [E] ★ 执行流程:                                             │
 │      ├── subscribeEmbeddedPiSession                         │
 │      │   └── session.subscribe(handler) ← 注册处理器        │
-│      └── activeSession.prompt() ← ★ 启动对话循环            │
-│          └── streamFn → Provider.streamCompletion           │
-│  [F] 结果: 分类 + 统计 + 清理                                │
+│      └── activeSession.prompt() ← 启动对话                  │
 │                                                              │
 │  输出: EmbeddedRunAttemptResult                              │
 │        { assistantTexts, toolMetas, usage }                  │
 └─────────────────────────────────────────────────────────────┘
         │
+        ▼ activeSession.prompt() 启动 PI Agent 内部循环
+┌─────────────────────────────────────────────────────────────┐
+│  ★ PI Agent Conversation Loop                               │
+│  来源: @mariozechner/pi-coding-agent                        │
+│                                                              │
+│  while (!finished) {                                         │
+│      // 调用 streamFn 获取 LLM 响应                          │
+│      const response = await session.agent.streamFn();       │
+│      │                                                       │
+│      ├── text chunk → message_update 事件                   │
+│      ├── toolCall → executeToolCall → 继续循环 ↺            │
+│      └── finishReason → 结束 ✓                               │
+│  }                                                           │
+│                                                              │
+│  ★ streamFn 就是 Provider.streamCompletion → [跳转到 (14)]  │
+└─────────────────────────────────────────────────────────────┘
+        │ streamFn() 调用
         ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  (14) Provider.streamCompletion                             │
 │  文件: extensions/*/src/provider.ts                         │
 │  作用: LLM API 调用                                          │
 │                                                              │
-│  调用时机: PI Agent Session 运行时调用 streamFn             │
 │  返回: AsyncIterable<StreamChunk>                            │
 │        { text, toolCall, finishReason }                      │
 └─────────────────────────────────────────────────────────────┘
