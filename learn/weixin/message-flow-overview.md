@@ -361,12 +361,66 @@ runAgentTurnWithFallback
 ```
 runEmbeddedPiAgent
         │
-        ├── 选择执行引擎
-        │       │
-        │       ├── PI Harness（默认）
-        │       └── Plugin Harness（自定义）
+        ├── 【选择执行引擎】谁来跑这个任务？
+        │   │
+        │   ├── PI Harness（默认）
+        │   │   │
+        │   │   ├── id: "pi"
+        │   │   ├── 内置引擎，支持所有 provider
+        │   │   └── runAttempt → runEmbeddedAttempt（第13站）
+        │   │
+        │   ├── Plugin Harness（自定义引擎）
+        │   │   │
+        │   │   ├── 示例：Codex App Server Harness
+        │   │   │   ├── 只处理特定 provider（如 "codex"）
+        │   │   │   ├── 优先级更高（priority: 100）
+        │   │   │   ├── 有自己的 runAttempt 实现
+        │   │   │   └── 可能有自己的 compact/reset 逻辑
+        │   │   │
+        │   │   └── 为什么？某些模型有特殊执行方式
+        │   │
+        │   ├── 选择逻辑：
+        │   │   │
+        │   │   ├── pinned：用户指定了 harness
+        │   │   ├── forced_pi：配置强制用 PI
+        │   │   ├── forced_plugin：配置强制用插件
+        │   │   ├── auto_plugin：自动选择匹配的插件
+        │   │   └── auto_pi：没有匹配插件，用 PI
+        │   │
+        │   └── 结果：选定的 Harness + Policy
         │
-        └── 准备执行环境
+        ├── 【准备执行环境】搭好舞台
+        │   │
+        │   ├── Session Key 补全
+        │   │   └── 确保下游都能拿到 sessionKey
+        │   │
+        │   ├── Lane 队列设置
+        │   │   ├── globalLane：全局任务队列
+        │   │   ├── sessionLane：会话任务队列
+        │   │   └── enqueueGlobal / enqueueSession
+        │   │
+        │   ├── Timeout 配置
+        │   │   └── laneTaskTimeoutMs（超时限制）
+        │   │
+        │   ├── Workspace 解析
+        │   │   ├── resolveRunWorkspaceDir
+        │   │   └── 如果用户指定的目录不存在？用 fallback
+        │   │
+        │   ├── Runtime Plugins 加载
+        │   │   └── ensureRuntimePluginsLoaded
+        │   │   └── 加载 agent 可用的运行时插件
+        │   │
+        │   ├── Provider/Model 解析
+        │   │   ├── provider: "claude" / "openai" / ...
+        │   │   └── modelId: "claude-opus-4-7" / "gpt-5.5" / ...
+        │   │
+        │   ├── Hook Runner 获取
+        │   │   └── getGlobalHookRunner()
+        │   │   └── 插件 hook 可能在执行中触发
+        │   │
+        │   └── 结果：执行环境就绪
+        │
+        └── 运行 Harness → runAgentHarnessAttempt
 ```
 
 ### 第11-12站：适配层
