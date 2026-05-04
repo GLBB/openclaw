@@ -345,16 +345,80 @@ runReplyAgent
 ```
 runAgentTurnWithFallback
         │
-        ├── 主模型调用失败？
-        │       │
-        │       └── 尝试备用模型
-        │       │
-        │       └── Claude失败 → 换GPT
-        │       │
-        │       └── GPT失败 → 换本地模型
+        ├── 【候选模型列表】解析可用模型
+        │   │
+        │   ├── 主模型（用户请求的）
+        │   │   └── provider/model: "claude/claude-opus-4-7"
+        │   │
+        │   ├── Fallback 模型（配置的备用）
+        │   │   ├── agents.defaults.model.fallbacks
+        │   │   ├── 示例配置：
+        │   │   │   ├── "openai/gpt-5.5" ← 第1备用
+        │   │   │   ├── "anthropic/claude-sonnet-4-6" ← 第2备用
+        │   │   │   └── "openai/gpt-4o-mini" ← 第3备用（本地）
+        │   │   │
+        │   │   └── 为什么要有备用？
+        │   │   ├── 主模型可能 rate_limit（限流）
+        │   │   ├── 主模型可能 overload（过载）
+        │   │   ├── 主模型可能 billing 问题（账单）
+        │   │   └── 主模型可能 timeout（超时）
+        │   │
+        │   ├── Auth Profile 检查
+        │   │   │
+        │   │   ├── 有认证配置？
+        │   │   ├── 所有 profile 都在 cooldown？
+        │   │   │   ├── 是 → 可能跳过这个候选
+        │   │   │   └── 否 → 继续尝试
+        │   │   │
+        │   │   └── cooldown = 刚失败过，需要等待
+        │   │
+        │   └── 结果：candidates[] ← 可尝试的模型列表
+        │
+        ├── 【逐个尝试】循环执行直到成功
+        │   │
+        │   │  for (candidate of candidates) {
+        │   │      │
+        │   │      ├── 调用 run(candidate.provider, candidate.model)
+        │   │      │   │
+        │   │      │   └── 执行 LLM 调用
+        │   │      │
+        │   │      ├── 成功？
+        │   │      │   ├── 是 → 返回结果，结束循环 ✓
+        │   │      │   │
+        │   │      │   └── 否 → 记录失败原因
+        │   │      │       ├── rate_limit：API 限流
+        │   │      │       ├── overloaded：服务过载
+        │   │      │       ├── billing：账单问题
+        │   │      │       ├── timeout：请求超时
+        │   │      │       ├── context_overflow：对话太长
+        │   │      │       ├── auth_error：认证失败
+        │   │      │       └── unknown：其他错误
+        │   │      │
+        │   │      ├── 错误处理：
+        │   │      │   ├── AbortError？→ 直接抛出（用户取消）
+        │   │      │   ├── FailoverError？→ 继下一个候选
+        │   │      │   ├── 其他错误？→ 继续下一个
+        │   │      │
+        │   │      └── 尝试下一个候选 ↺
+        │   │  }
+        │   │
+        │   └── 所有候选都失败？
+        │   │   │
+        │   │   └── 抛出 FallbackSummaryError
+        │   │   ├── 包含：所有尝试的详情
+        │   │   ├── 包含：最短的 cooldown 过期时间
+        │   │   │
+        │   │   └── 用户看到：
+        │   │   ├── "Claude rate-limited, retry in 30s"
+        │   │   ├── "GPT overloaded, retry in 2m"
+        │   │   ├── "所有模型暂时不可用，请稍后重试"
+        │   │
+        │   └── 成功？返回 { result, provider, model, attempts }
         │
         └── 模型可用？→ 继续执行
 ```
+
+**关键点**：Fallback 不是"随便换模型"，而是按配置顺序逐个尝试，每个失败都有明确原因。
 
 ### 第10站：Harness 选择站
 
