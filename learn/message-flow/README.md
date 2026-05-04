@@ -22,24 +22,25 @@
 
 ## 目录结构
 
-| 文件                                                                 | 函数                                | 作用                                   | 状态 |
-| -------------------------------------------------------------------- | ----------------------------------- | -------------------------------------- | ---- |
-| [README.md](README.md)                                               | -                                   | 详细目录和调用链                       | 完成 |
-| [01-monitor-transport.md](01-monitor-transport.md)                   | `monitorWebSocket`/`monitorWebhook` | **接入层**：WebSocket/Webhook 消息接收 | 完成 |
-| [02-monitor-message-handler.md](02-monitor-message-handler.md)       | `createFeishuMessageReceiveHandler` | **解析层**：事件解析、去重、debounce   | 完成 |
-| [03-handle-feishu-message.md](03-handle-feishu-message.md)           | `handleFeishuMessage`               | **业务层**：权限检查、路由解析         | 完成 |
-| [04-run-channel-turn.md](04-run-channel-turn.md)                     | `runChannelTurn`                    | **编排层**：Turn 生命周期管理          | 完成 |
-| [05-dispatch-reply-from-config.md](05-dispatch-reply-from-config.md) | `dispatchReplyFromConfig`           | **第 1 层**：分发协调器                | 完成 |
-| [06-get-reply-from-config.md](06-get-reply-from-config.md)           | `getReplyFromConfig`                | **第 2 层**：回复准备器                | 完成 |
-| [07-run-prepared-reply.md](07-run-prepared-reply.md)                 | `runPreparedReply`                  | **第 3 层**：执行准备器                | 完成 |
-| [08-run-reply-agent.md](08-run-reply-agent.md)                       | `runReplyAgent`                     | **第 4 层**：Agent 编排器              | 完成 |
-| [09-run-agent-turn.md](09-run-agent-turn.md)                         | `runAgentTurnWithFallback`          | **执行层**：Agent Turn 执行            | 完成 |
-| [10-run-embedded-pi-agent.md](10-run-embedded-pi-agent.md)           | `runEmbeddedPiAgent`                | **Pi 层**：嵌入式 Pi Agent 运行        | 完成 |
-| [11-run-agent-harness-attempt.md](11-run-agent-harness-attempt.md)   | `runAgentHarnessAttempt`            | **Harness 层**：Harness 尝试           | 完成 |
-| [12-run-harness-v2-lifecycle.md](12-run-harness-v2-lifecycle.md)     | `runHarnessV2LifecycleAttempt`      | **V2 层**：Harness V2 生命周期         | 完成 |
-| [13-provider-stream-completion.md](13-provider-stream-completion.md) | `Provider.streamCompletion`         | **Provider 层**：LLM API 调用          | 完成 |
-| [14-reply-dispatcher.md](14-reply-dispatcher.md)                     | `ReplyDispatcher`                   | **分发层**：回复分发器                 | 完成 |
-| [15-send-message-feishu.md](15-send-message-feishu.md)               | `sendMessageFeishu`                 | **发送层**：飞书消息发送               | 完成 |
+| 文件                                                                 | 函数                                | 作用                                    | 状态 |
+| -------------------------------------------------------------------- | ----------------------------------- | --------------------------------------- | ---- |
+| [README.md](README.md)                                               | -                                   | 详细目录和调用链                        | 完成 |
+| [01-monitor-transport.md](01-monitor-transport.md)                   | `monitorWebSocket`/`monitorWebhook` | **接入层**：WebSocket/Webhook 消息接收  | 完成 |
+| [02-monitor-message-handler.md](02-monitor-message-handler.md)       | `createFeishuMessageReceiveHandler` | **解析层**：事件解析、去重、debounce    | 完成 |
+| [03-handle-feishu-message.md](03-handle-feishu-message.md)           | `handleFeishuMessage`               | **业务层**：权限检查、路由解析          | 完成 |
+| [04-run-channel-turn.md](04-run-channel-turn.md)                     | `runChannelTurn`                    | **编排层**：Turn 生命周期管理           | 完成 |
+| [05-dispatch-reply-from-config.md](05-dispatch-reply-from-config.md) | `dispatchReplyFromConfig`           | **第 1 层**：分发协调器                 | 完成 |
+| [06-get-reply-from-config.md](06-get-reply-from-config.md)           | `getReplyFromConfig`                | **第 2 层**：回复准备器                 | 完成 |
+| [07-run-prepared-reply.md](07-run-prepared-reply.md)                 | `runPreparedReply`                  | **第 3 层**：执行准备器                 | 完成 |
+| [08-run-reply-agent.md](08-run-reply-agent.md)                       | `runReplyAgent`                     | **第 4 层**：Agent 编排器               | 完成 |
+| [09-run-agent-turn.md](09-run-agent-turn.md)                         | `runAgentTurnWithFallback`          | **执行层**：Agent Turn 执行             | 完成 |
+| [10-run-embedded-pi-agent.md](10-run-embedded-pi-agent.md)           | `runEmbeddedPiAgent`                | **Pi 层**：嵌入式 Pi Agent 运行         | 完成 |
+| [11-run-agent-harness-attempt.md](11-run-agent-harness-attempt.md)   | `runAgentHarnessAttempt`            | **Harness 层**：Harness 尝试            | 完成 |
+| [12-run-harness-v2-lifecycle.md](12-run-harness-v2-lifecycle.md)     | `runHarnessV2LifecycleAttempt`      | **V2 层**：Harness V2 生命周期          | 完成 |
+| [13-run-embedded-attempt.md](13-run-embedded-attempt.md)             | `runEmbeddedAttempt`                | **核心层**：Session/Prompt/API/工具执行 | 完成 |
+| [14-provider-stream-completion.md](14-provider-stream-completion.md) | `Provider.streamCompletion`         | **Provider 层**：LLM API 调用           | 完成 |
+| [15-reply-dispatcher.md](15-reply-dispatcher.md)                     | `ReplyDispatcher`                   | **分发层**：回复分发器                  | 完成 |
+| [16-send-message-feishu.md](16-send-message-feishu.md)               | `sendMessageFeishu`                 | **发送层**：飞书消息发送                | 完成 |
 
 ---
 
@@ -143,7 +144,7 @@ Layer 4: runReplyAgent            → LLM 调用、结果构造
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 执行层（LLM 调用，步骤 9-13）
+### 执行层（LLM 调用，步骤 9-14）
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -181,31 +182,354 @@ Layer 4: runReplyAgent            → LLM 调用、结果构造
 ┌─────────────────────────────────────────────────────────────┐
 │  (13) runEmbeddedAttempt                                     │
 │  文件: src/agents/pi-embedded-runner/run/attempt.ts          │
-│  作用: 核心执行 - Session/Prompt/API/工具执行                │
+│  作用: 核心执行 - Session/Prompt/工具准备                     │
 │  行数: ~3700                                                 │
 │                                                              │
-│  内部调用: Provider.streamCompletion → LLM API              │
+│  关键组件 (PI Agent):                                        │
+│  ├── SessionManager.open() ← @mariozechner/pi-coding-agent  │
+│  ├── createAgentSession() ← @mariozechner/pi-coding-agent   │
+│  │   └── 创建 PI Agent Session                              │
+│  │   └── session.agent.streamFn = Provider.streamCompletion │
+│  │                                                          │
+│  关键组件 (Tools):                                           │
+│  ├── createOpenClawCodingTools() → 核心工具集               │
+│  │   └── read/write/edit/grep/exec/web_search/message...   │
+│  ├── getOrCreateSessionMcpRuntime() → MCP 工具              │
+│  ├── createBundleLspToolRuntime() → LSP 工具                │
+│  └── applyEmbeddedAttemptToolsAllow() → 工具过滤             │
+│                                                              │
+│  关键组件 (Stream):                                          │
+│  ├── registerProviderStreamForModel → providerStreamFn      │
+│  ├── resolveEmbeddedAgentStreamFn → 包装赋值                │
+│  └── subscribeEmbeddedPiSession → PI Session 订阅          │
+│                                                              │
+│  PI Agent Session 内部调用 Provider API                     │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  PI Agent Session (@mariozechner/pi-coding-agent)           │
+│                                                              │
+│  session.subscribe(eventHandler)                            │
+│      │                                                       │
+│      └── PI Session 内部运行循环                             │
+│          │                                                   │
+│          ├── 调用 session.agent.streamFn()                  │
+│          │   │                                               │
+│          │   └── [跳转到 (14) Provider.streamCompletion]     │
+│          │                                                   │
+│          ├── 接收 LLM 响应流                                 │
+│          ├── 触发 eventHandler (assistantMessage/toolCall)  │
+│          └── 工具执行循环                                    │
+│                                                              │
+│  核心: PI Agent 管理整个 LLM 对话循环                        │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  (14) Provider.streamCompletion                              │
+│  文件: extensions/*/src/provider.ts                          │
+│  作用: LLM API 调用                                          │
+│                                                              │
+│  调用时机:                                                   │
+│  ├── runEmbeddedAttempt 注册 streamFn                       │
+│  └── PI Agent Session 运行时调用 streamFn                   │
+│      └── HTTP POST → LLM Provider API                       │
+│                                                              │
+│  返回: AsyncIterable<StreamChunk>                            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 后置层（回复发送，步骤 14-15）
+### 后置层（回复发送，步骤 15-16）
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  (14) feishu/src/reply-dispatcher.ts                        │
+│  (15) feishu/src/reply-dispatcher.ts                        │
 │  作用: 回复分发 (Block/Final Reply)                         │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  (15) feishu/src/send.ts                                    │
+│  (16) feishu/src/send.ts                                    │
 │  作用: 飞书 API 发送                                         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 15 步调用链（完整路径）
+## PI Agent 输出处理
+
+PI Agent Session 完成后，输出需要经过多层处理才能发送给用户。
+
+### 流式处理机制
+
+整个流程是**流式输出 + 工具执行循环**的混合模式：
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Provider.streamCompletion                                                   │
+│  返回: AsyncIterable<StreamChunk> ← 流式响应                                │
+│                                                                              │
+│  流式 chunk 类型:                                                            │
+│  ├── { text: "部分文本..." }          → 文本片段                            │
+│  ├── { toolCall: { name, args } }     → 工具调用请求                        │
+│  └── { finishReason: "stop" }         → 结束标志                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼ 流式处理（逐个 chunk）
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  PI Agent Session Conversation Loop                                          │
+│                                                                              │
+│  for await (const chunk of response) {   ← 异步迭代流                        │
+│      │                                                                       │
+│      │  case "text":                                                         │
+│      ├──→ onAssistantMessage(text)                                           │
+│      │       └── dispatcher.sendBlockReply({ text })                        │
+│      │           └── 飞书卡片实时更新 ← 流式发送给用户                       │
+│      │           └── 用户看到逐步生成                                        │
+│      │                                                                       │
+│      │  case "toolCall":                                                     │
+│      └──→ onToolCall(toolCall)                                               │
+│              └── executeToolCall() ← 执行工具（非流式，需等待）              │
+│              └── toolResult 加入 context                                     │
+│              └── 再次调用 streamFn() ← 新的流式请求                          │
+│              └── 循环继续...                                                 │
+│      │                                                                       │
+│      │  case "finishReason":                                                 │
+│      └──→ finished = true                                                    │
+│  }                                                                           │
+│                                                                              │
+│  流式结束后:                                                                  │
+│  dispatcher.sendFinalReply(完整回复) ← 最终完整消息                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**流式 vs 阻塞环节对比**：
+
+| 环节                            | 类型   | 说明                       | 用户感知     |
+| ------------------------------- | ------ | -------------------------- | ------------ |
+| **Provider.streamCompletion**   | 流式   | AsyncIterable<StreamChunk> | -            |
+| **text chunk → sendBlockReply** | 流式   | 每个 chunk 立即处理        | 看到逐步生成 |
+| **toolCall → executeToolCall**  | 阻塞   | 执行工具需等待结果         | 看到暂停     |
+| **再次 streamFn**               | 流式   | 新的流式请求               | 看到继续生成 |
+| **sendFinalReply**              | 一次性 | 完成后发送完整消息         | 完整卡片     |
+
+**时间线示例**：
+
+```
+时间 →
+
+[LLM 流式输出] "国内模型" → sendBlockReply → 用户看到 "国内"
+[LLM 流式输出] "和国外"   → sendBlockReply → 用户看到 "国内和国外"
+[LLM 流式输出] "模型差距" → sendBlockReply → 用户看到 "国内和国外模型差距"
+[LLM 输出 toolCall: web_search]
+    │
+    └──→ executeToolCall(web_search) ← 执行工具 (等待 2-5 秒)
+    │       └── 用户看到生成暂停
+    │       └── dispatcher.sendToolResult() ← 飞书不显示
+    │       └── toolResult 加入 context
+    │
+    └──→ 再次 streamFn() ← 新的 LLM 请求
+[LLM 流式输出] "根据搜索结果..." → sendBlockReply → 用户看到继续生成
+[LLM 流式输出] "国产模型如..."   → sendBlockReply → 用户看到更多内容
+[LLM finishReason: stop]
+    │
+    └──→ sendFinalReply(完整回复) ← 发送完整交互式卡片
+    │       └── 用户看到最终消息
+```
+
+### 输出到发送的完整链路
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  PI Agent Session 输出                                                       │
+│                                                                              │
+│  subscribeEmbeddedPiSession 返回:                                            │
+│  ├── assistantTexts: string[]        → 文本回复片段                         │
+│  ├── toolMetas: ToolMeta[]           → 工具执行元数据                       │
+│  ├── usage: TokenUsage               → Token 使用统计                       │
+│  └── finishReason: string            → 结束原因                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (13) runEmbeddedAttempt 结果处理                                            │
+│                                                                              │
+│  ├── classifyRunResult()              → 结果分类                             │
+│  │   └── "ok" | "error" | "aborted" | "timeout"                              │
+│  │                                                                           │
+│  ├── emitDiagnosticRunCompleted()     → 诊断事件                             │
+│  │                                                                           │
+│  └── 返回 EmbeddedRunAttemptResult                                           │
+│      { assistantTexts, toolMetas, usage, classification }                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (12 → 11 → 10 → 9) 结果逐层返回                                             │
+│                                                                              │
+│  runHarnessV2LifecycleAttempt.resolveOutcome()                               │
+│      └── applyClassification() → 标记最终状态                               │
+│                                                                              │
+│  runEmbeddedPiAgent()                                                        │
+│      └── 返回 PiAgentRunResult                                               │
+│                                                                              │
+│  runAgentTurnWithFallback()                                                  │
+│      └── 处理 fallback 结果                                                  │
+│      └── 返回 AgentTurnResult                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (8) runReplyAgent 结果构造                                                   │
+│                                                                              │
+│  ├── constructReplyPayload()           → 构建 ReplyPayload                  │
+│  │   ├── assistantTexts.join()        → 合并文本                            │
+│  │   ├── resolveOutcome()             → 结果状态                            │
+│  │   └── { text, model, provider, usage, toolMetas }                        │
+│  │                                                                           │
+│  └── 流式输出（并行处理）                                                     │
+│      │                                                                       │
+│      ├── onBlockReply(chunk)           → 流式更新                           │
+│      │   └── dispatcher.sendBlockReply()                                    │
+│      │       └── 实时更新飞书卡片                                            │
+│      │                                                                       │
+│      └── onToolResult(result)          → 工具结果                           │
+│          └── dispatcher.sendToolResult()                                    │
+│              └── 飞书：不显示（返回 false）                                   │
+│              └── 其他渠道：可能显示                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (5 → 6 → 7) ReplyPayload 返回                                               │
+│                                                                              │
+│  runPreparedReply()                                                          │
+│      └── 返回 ReplyPayload                                                   │
+│                                                                              │
+│  getReplyFromConfig()                                                        │
+│      └── 返回 ReplyPayload                                                   │
+│                                                                              │
+│  dispatchReplyFromConfig()                                                   │
+│      └── dispatcher.sendFinalReply(payload)                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (15) ReplyDispatcher 发送                                                   │
+│  文件: feishu/src/reply-dispatcher.ts                                        │
+│                                                                              │
+│  sendFinalReply(payload)                                                     │
+│      │                                                                       │
+│      ├── shouldUseCard(text)            → 判断是否使用卡片                   │
+│      │   └── 条件: 包含代码块 || 包含表格                                    │
+│      │                                                                       │
+│      ├── 卡片模式:                                                            │
+│      │   └── sendCardFeishu()           → 发送交互式卡片                    │
+│      │       └── buildFeishuCardPayload()                                   │
+│      │       └── client.im.message.create()                                 │
+│      │                                                                       │
+│      └── 文本模式:                                                            │
+│          └── sendMessageFeishu()        → 发送文本消息                      │
+│              └── buildFeishuPostMessagePayload()                            │
+│              └── client.im.message.create()                                 │
+│                                                                              │
+│  流式更新（并行进行）:                                                        │
+│  sendBlockReply(chunk)                                                       │
+│      │                                                                       │
+│      ├── streamingSession.updateCard() → 更新飞书卡片                       │
+│      │   └── 实时显示生成内容                                                 │
+│      │   └── 用户看到"打字"效果                                               │
+│      │                                                                       │
+│      └── 最终完成时：卡片变为最终回复                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (16) sendMessageFeishu 飞书 API                                             │
+│  文件: feishu/src/send.ts                                                    │
+│                                                                              │
+│  sendMessageFeishu({ to, text, replyToMessageId })                          │
+│      │                                                                       │
+│      ├── resolveFeishuSendTarget()      → 解析发送目标                      │
+│      │   ├── open_id                    → 用户私聊                          │
+│      │   ├── chat_id                    → 群聊                              │
+│      │   └── user_id                    → 用户 ID                           │
+│      │                                                                       │
+│      ├── buildFeishuPostMessagePayload() → 构建消息体                       │
+│      │   ├── msg_type: "post"           → 富文本消息                        │
+│      │   ├── content: PostContent       → 内容结构                          │
+│      │   │   └── [[{ tag: "text", text: "..." }]]                           │
+│      │   └── reply_to_message_id        → 回复原消息                        │
+│      │                                                                       │
+│      └── client.im.message.create()      → 飞书 API 调用                    │
+│          └── POST /im/v1/messages?receive_id_type=open_id                   │
+│          └── Headers: Authorization:Bearer xxx                              │
+│          └── Body: { receive_id, msg_type, content }                        │
+│          └── 返回: { message_id: "om_xxx" }                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+    飞书服务器送达用户
+```
+
+### Block Reply vs Final Reply
+
+两种回复类型的对比：
+
+| 类型            | 时机       | 内容 | 显示效果                 | API                           |
+| --------------- | ---------- | ---- | ------------------------ | ----------------------------- |
+| **Block Reply** | 流式过程中 | 部分 | 实时更新，用户看到"打字" | `dispatcher.sendBlockReply()` |
+| **Final Reply** | 完成后     | 完整 | 卡片或文本消息，可交互   | `dispatcher.sendFinalReply()` |
+
+**Block Reply 机制**：
+
+- 每个 LLM text chunk 立即通过 `sendBlockReply` 发送
+- 飞书卡片实时更新，用户看到逐步生成
+- 工具执行期间暂停，但卡片保持显示
+
+**Final Reply 机制**：
+
+- 所有文本片段合并后一次性发送
+- 根据内容判断使用卡片或文本消息
+- 卡片模式：包含代码块或表格时使用交互式卡片
+- 文本模式：普通文本使用飞书富文本消息
+
+### ReplyPayload 结构
+
+```typescript
+type ReplyPayload = {
+  // 文本内容
+  text: string;
+
+  // 模型信息
+  model: string;
+  provider: string;
+
+  // Token 使用
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheWriteTokens?: number;
+    cacheReadTokens?: number;
+  };
+
+  // 工具元数据
+  toolMetas?: ToolMeta[];
+
+  // 结果状态
+  outcome?: "ok" | "error" | "aborted" | "timeout";
+
+  // 其他
+  finishReason?: string;
+  sessionId?: string;
+  runId?: string;
+};
+```
+
+---
+
+## 16 步调用链（完整路径）
 
 > **Harness 类型说明**：
 >
@@ -372,12 +696,13 @@ Layer 4: runReplyAgent            → LLM 调用、结果构造
 │     │   │  harness.runAttempt(session.params)  ← 来自 V1 AgentHarness       │
 │     │   │                                                                    │
 │     │   └── PI Harness V1.runAttempt → runEmbeddedAttempt (~3700 行)        │
-│     │       ├── [阶段 A] 初始化: workspace/sandbox/skills/tools            │
-│     │       ├── [阶段 B] Session: SessionManager + PI Session               │
-│     │       ├── [阶段 C] Prompt: systemPrompt + history 处理                │
-│     │       ├── [阶段 D] API: streamFn 配置                                 │
-│     │       ├── [阶段 E] 执行: subscribeEmbeddedPiSession                   │
-│     │       │   └── streamFn → [跳转到 (13)]                                │
+│     │       ├── [阶段 A] 初始化: workspace/sandbox/skills                   │
+│     │       ├── [阶段 B] Tools: createOpenClawCodingTools + MCP/LSP         │
+│     │       ├── [阶段 C] Session: SessionManager + PI Session               │
+│     │       ├── [阶段 D] Prompt: systemPrompt + bootstrap files             │
+│     │       ├── [阶段 E] StreamFn 注册 + 执行                                │
+│     │       │   └── subscribeEmbeddedPiSession → PI Session 循环            │
+│     │       │       └── streamFn → [跳转到 (14)]                            │
 │     │       └── [阶段 F] 结果: 构造返回 + 清理                               │
 │     ├── harness.resolveOutcome()           → 应用 result classification     │
 │     └── harness.cleanup()                  → 清理资源                        │
@@ -389,7 +714,57 @@ Layer 4: runReplyAgent            → LLM 调用、结果构造
         │
         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  (13) bailian/src/provider.ts                                                 │
+│  (13) agents/pi-embedded-runner/run/attempt.ts:704                           │
+│     runEmbeddedAttempt(params)                                               │
+│                                                                              │
+│     核心执行函数 (~3700 行):                                                  │
+│     ├── [阶段 A] 初始化: workspace/sandbox/skills                            │
+│     ├── [阶段 B] Tools 构建:                                                 │
+│     │   ├── createOpenClawCodingTools() → 核心工具集                         │
+│     │   │   └── read/write/edit/grep/exec/web_search/message...             │
+│     │   ├── getOrCreateSessionMcpRuntime() → MCP 工具                        │
+│     │   ├── createBundleLspToolRuntime() → LSP 工具                          │
+│     │   └── applyEmbeddedAttemptToolsAllow() → 工具过滤                       │
+│     ├── [阶段 C] Session (PI Agent):                                        │
+│     │   ├── SessionManager.open() ← @mariozechner/pi-coding-agent           │
+│     │   ├── createAgentSession() ← @mariozechner/pi-coding-agent            │
+│     │   │   └── 创建 PI Agent Session                                       │
+│     │   │   └── 设置 systemPrompt, tools                                    │
+│     │   └── history 处理                                                    │
+│     ├── [阶段 D] Prompt: systemPrompt + bootstrap files                     │
+│     ├── [阶段 E] StreamFn 注册:                                             │
+│     │       │                                                                │
+│     │       ├── registerProviderStreamForModel → providerStreamFn           │
+│     │       │   └── providerStreamFn = Provider.streamCompletion            │
+│     │       │                                                                │
+│     │       └── resolveEmbeddedAgentStreamFn                                │
+│     │           └── session.agent.streamFn = 包装后的 streamFn              │
+│     │                                                                        │
+│     ├── [阶段 E-2] 执行:                                                    │
+│     │       │                                                                │
+│     │       └── subscribeEmbeddedPiSession({ session })                     │
+│     │           │                                                            │
+│     │           └── session.subscribe(eventHandler)                         │
+│     │               │                                                        │
+│     │               └── ★ PI Agent Session 运行循环                          │
+│     │                   │                                                    │
+│     │                   ├── 调用 session.agent.streamFn()                   │
+│     │                   │   └── [跳转到 (14) Provider.streamCompletion]      │
+│     │                   │                                                    │
+│     │                   ├── 接收 LLM 响应                                    │
+│     │                   ├── 触发 eventHandler                                │
+│     │                   └── 工具执行循环                                     │
+│     │                                                                        │
+│     └── [阶段 F] 结果: 构造返回 + 清理                                        │
+│                                                                              │
+│     ★ 核心: @mariozechner/pi-coding-agent 管理 LLM 对话循环                  │
+│                                                                              │
+│     输出: EmbeddedRunAttemptResult { assistantTexts, toolMetas, usage }      │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (14) bailian/src/provider.ts (或其他 Provider)                              │
 │     streamCompletion({ model, messages, tools })                             │
 │     ├── callBailianApi()                   → HTTP POST                       │
 │     │   └── https://bailian.aliyuncs.com/v1/chat/completions                │
@@ -402,7 +777,7 @@ Layer 4: runReplyAgent            → LLM 调用、结果构造
         │  流式返回
         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  (14) feishu/src/reply-dispatcher.ts:131                                      │
+│  (15) feishu/src/reply-dispatcher.ts:131                                      │
 │     dispatcher.sendBlockReply() (流式)                                       │
 │     ├── streamingSession.updateCard()      → 更新飞书卡片                   │
 │     │   └── 实时显示生成内容                                                 │
@@ -410,12 +785,12 @@ Layer 4: runReplyAgent            → LLM 调用、结果构造
 │     dispatcher.sendFinalReply() (最终)                                       │
 │     ├── shouldUseCard()                    → 判断是否卡片                   │
 │     │   └── 条件: 代码块 | 表格                                              │
-│     └── sendMessageFeishu() | sendCardFeishu() → [跳转到 (15)]               │
+│     └── sendMessageFeishu() | sendCardFeishu() → [跳转到 (16)]               │
 └─────────────────────────────────────────────────────────────────────────────┘
         │
         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  (15) feishu/src/send.ts:549                                                  │
+│  (16) feishu/src/send.ts:549                                                  │
 │     sendMessageFeishu({ to, text, replyToMessageId })                        │
 │     ├── resolveFeishuSendTarget()          → 解析发送目标                   │
 │     ├── buildFeishuPostMessagePayload()    → 构建消息体                     │
@@ -435,13 +810,13 @@ Layer 4: runReplyAgent            → LLM 调用、结果构造
 当 LLM 返回 `toolCall` 时，进入工具执行循环：
 
 ```
-(12) harness.send() → Provider API
+(13) runEmbeddedAttempt → subscribeEmbeddedPiSession
         │
         ▼  返回 toolCall
 │
 │  ┌─────────────────────────────────────────────────────────────────────┐
-│  │ agents/harness/v2.ts                                                 │
-│  │ executeToolCall(toolCall)                                            │
+│  │ agents/pi-embedded-runner/run/attempt.ts                           │
+│  │ executeToolCall(toolCall)                                           │
 │  │ ├── resolveToolDefinition()        → 获取工具定义                     │
 │  │ ├── validateToolInput()            → 验证输入                         │
 │  │ └── tool.execute(input)            → 执行工具                         │
@@ -456,7 +831,7 @@ Layer 4: runReplyAgent            → LLM 调用、结果构造
 │  │ ├── appendToolResultToHistory()    → 记录到 Session                │
 │  │ │                                                                   │
 │  │ └── 继续调用 Provider API           → 循环直到结束                   │
-│  │     └── streamCompletion() → (13)                                      │
+│  │     └── streamCompletion() → (14)                                   │
 │  └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -575,6 +950,338 @@ flowchart TD
 
 ---
 
+## 可选旁支处理
+
+主流程之外，有多个可选的旁支处理，根据配置和状态决定是否执行。
+
+### 预压缩检查（Preflight Compaction）
+
+**位置**: `runReplyAgent` (步骤 8)
+
+**触发条件**: 会话历史接近 context window 限制
+
+**处理流程**:
+
+```
+runReplyAgent()
+    │
+    ├── runPreflightCompactionIfNeeded()
+    │   │
+    │   ├── 检查 history token count
+    │   │   └── 计算: inputTokens + pendingTokens
+    │   │   └── 对比: contextWindow * compactionThreshold
+    │   │
+    │   ├── 如果超出阈值:
+    │   │   └── runSessionCompaction()
+    │   │       ├── 旧消息 → LLM Summary
+    │   │       ├── 替换为摘要
+    │   │       └── 空出空间
+    │   │
+    │   └── 否则: 跳过
+    │
+    └── 继续执行...
+```
+
+**参数**:
+
+- `compactionThreshold`: 默认 0.75 (75% 触发)
+- `contextWindow`: 模型上下文窗口大小
+
+### 内存刷新检查（Memory Flush）
+
+**位置**: `runReplyAgent` (步骤 8)
+
+**触发条件**: 内存数据需要更新
+
+**处理流程**:
+
+```
+runReplyAgent()
+    │
+    ├── runMemoryFlushIfNeeded()
+    │   │
+    │   ├── 检查 memory flush 配置
+    │   │   └── config.memory.flushInterval
+    │   │   └── lastFlushTime + flushInterval < now
+    │   │
+    │   ├── 如果需要刷新:
+    │   │   └── flushMemory()
+    │   │       ├── 清理过期记忆
+    │   │       ├── 重新加载记忆文件
+    │   │       └── 更新 lastFlushTime
+    │   │
+    │   └── 否则: 跳过
+    │
+    └── 继续执行...
+```
+
+### Bootstrap 文件注入
+
+**位置**: `runEmbeddedAttempt` (步骤 13，阶段 D)
+
+**触发条件**: 新工作目录或需要 bootstrap
+
+**处理流程**:
+
+```
+runEmbeddedAttempt()
+    │
+    ├── [阶段 D] Prompt 构建
+    │   │
+    │   ├── resolveAttemptBootstrapContext()
+    │   │   │
+    │   │   ├── 检查 bootstrapMode
+    │   │   │   ├── "none": 无 bootstrap
+    │   │   │   ├── "limited": 部分 bootstrap
+    │   │   │   └── "full": 完整 bootstrap
+    │   │   │
+    │   │   ├── 读取 bootstrap 文件:
+    │   │   │   ├── AGENTS.md
+    │   │   │   ├── SOUL.md
+    │   │   │   ├── IDENTITY.md
+    │   │   │   ├── USER.md
+    │   │   │   ├── TOOLS.md
+    │   │   │   ├── MEMORY.md
+    │   │   │   └── BOOTSTRAP.md
+    │   │   │
+    │   │   ├── analyzeBootstrapBudget()
+    │   │   │   └── 检查字符限制
+    │   │   │   ├── bootstrapMaxChars
+    │   │   │   ├── bootstrapTotalMaxChars
+    │   │   │
+    │   │   └── 注入到 systemPrompt
+    │   │
+    │   └── 继续执行...
+```
+
+**Bootstrap 模式**:
+
+- `none`: 首次运行后，不再注入
+- `limited`: 只注入核心文件
+- `full`: 注入所有文件
+
+### Sandbox 检查
+
+**位置**: `runEmbeddedAttempt` (步骤 13，阶段 A)
+
+**触发条件**: 配置启用 sandbox
+
+**处理流程**:
+
+```
+runEmbeddedAttempt()
+    │
+    ├── [阶段 A] 初始化
+    │   │
+    │   ├── resolveSandboxContext()
+    │   │   │
+    │   │   ├── 检查 config.sandbox
+    │   │   │   ├── enabled: true/false
+    │   │   │   ├── workspaceAccess: "rw"/"ro"/"none"
+    │   │   │   ├── tools: tool policy
+    │   │   │
+    │   │   ├── 如果 enabled:
+    │   │   │   ├── 创建 sandbox 目录
+    │   │   │   ├── 复制 workspace (ro/none)
+    │   │   │   ├── 设置工具限制
+    │   │   │   └── effectiveWorkspace = sandboxDir
+    │   │   │
+    │   │   └── 否则:
+    │   │   │   └── effectiveWorkspace = resolvedWorkspace
+    │   │
+    │   └── 继续执行...
+```
+
+**Sandbox 模式**:
+
+- `rw`:读写模式，使用原目录
+- `ro`:只读模式，复制到 sandbox
+- `none`:无访问，隔离 sandbox
+
+### Skills 加载
+
+**位置**: `runEmbeddedAttempt` (步骤 13，阶段 A-B)
+
+**触发条件**: Agent 配置了 skills
+
+**处理流程**:
+
+```
+runEmbeddedAttempt()
+    │
+    ├── [阶段 A] Skills 解析
+    │   │
+    │   ├── resolveEmbeddedRunSkillEntries()
+    │   │   │
+    │   │   ├── 检查 skillsSnapshot
+    │   │   │   ├── 检查 config.skills
+    │   │   │
+    │   │   ├── 如果有 skills:
+    │   │   │   ├── 加载 skill 文件
+    │   │   │   ├── 解析 skill 配置
+    │   │   │   └── 提取 skill prompts
+    │   │   │
+    │   │   └── 否则: skillsPrompt = undefined
+    │   │
+    │   ├── applySkillEnvOverrides()
+    │   │   └── 应用 skill ENV 覆盖
+    │   │
+    │   └── resolveSkillsPromptForRun()
+    │       └── 构建 skillsPrompt
+    │
+    ├── [阶段 B] Tools 构建
+    │   └── skillsPrompt 注入到 systemPrompt
+    │
+    └── 继续执行...
+```
+
+**Skill 组成**:
+
+- Prompt: 技能描述和使用说明
+- ENV: 环境变量覆盖
+- Tools: 技能相关工具
+
+### 工具策略过滤
+
+**位置**: `runEmbeddedAttempt` (步骤 13，阶段 B)
+
+**触发条件**: 配置了 toolsAllow 或 sandbox tool policy
+
+**处理流程**:
+
+```
+runEmbeddedAttempt()
+    │
+    ├── [阶段 B] Tools 构建
+    │   │
+    │   ├── createOpenClawCodingTools() → allTools
+    │   │
+    │   ├── applyEmbeddedAttemptToolsAllow(allTools, params.toolsAllow)
+    │   │   │
+    │   │   ├── 检查 toolsAllow 配置
+    │   │   │   ├── 如果有配置:
+    │   │   │   │   ├── 只保留允许的工具
+    │   │   │   │   ├── 过滤禁止的工具
+    │   │   │   │
+    │   │   │   └── 否则: 全部保留
+    │   │   │
+    │   │   └── 返回 filteredTools
+    │   │
+    │   ├── getOrCreateSessionMcpRuntime() → mcpTools
+    │   ├── createBundleLspToolRuntime() → lspTools
+    │   │
+    │   └── applyFinalEffectiveToolPolicy()
+    │       │
+    │       ├── 检查 sandbox.tools policy
+    │       ├── 检查 config.toolPolicy
+    │       ├── 合并 bundledTools: mcpTools + lspTools
+    │       └── 应用最终过滤
+    │       │
+    │       └── 返回 effectiveTools
+    │
+    └── 继续执行...
+```
+
+**工具过滤层级**:
+
+1. `toolsAllow`: 用户配置允许的工具列表
+2. `sandbox.tools`: Sandbox 工具策略
+3. `config.toolPolicy`: 全局工具策略
+
+### 队列处理
+
+**位置**: `dispatchReplyFromConfig` (步骤 5)
+
+**触发条件**: 配置了 queue 或消息需要排队
+
+**处理流程**:
+
+```
+dispatchReplyFromConfig()
+    │
+    ├── shouldSteer(ctx)
+    │   │
+    │   ├── 检查是否需要队列处理
+    │   │   ├── 同一会话多条消息
+    │   │   ├── 消息间隔很短
+    │   │
+    │   ├── 如果 true:
+    │   │   └── queueMessage()
+    │   │       │
+    │   │       ├── shouldFollowup()
+    │   │       │   ├── false: return undefined
+    │   │       │   ├── true: 继续检查
+    │   │       │
+    │   │       ├── resolveQueueAction()
+    │   │       │   ├── "drop": 丢弃消息
+    │   │       │   ├── "enqueue": 加入队列
+    │   │       │   ├── "run": 立即执行
+    │   │       │
+    │   │       └── 根据 action 处理
+    │   │
+    │   └── 如果 false:
+    │       └── 正常执行
+    │
+    └── 继续执行...
+```
+
+**队列 Action**:
+
+- `drop`: 丢弃，不处理
+- `enqueue`: 加入队列，等待
+- `run`: 立即执行
+
+### 模型 Fallback（降级）
+
+**位置**: `runAgentTurnWithFallback` (步骤 9)
+
+**触发条件**: 主模型调用失败
+
+**处理流程**:
+
+```
+runAgentTurnWithFallback()
+    │
+    ├── 尝试主模型: defaultModel
+    │   └── runEmbeddedPiAgent()
+    │       └── 如果失败:
+    │           ├── 检查 fallbackModels
+    │           ├── 尝试下一个模型
+    │           │   ├── fallback[0]: gpt-5.5
+    │           │   ├── fallback[1]: sonnet-4.6
+    │           │   ├── ...
+    │           │
+    │           ├── 如果全部失败:
+    │           │   └── 返回错误
+    │           │
+    │           └── 如果某个成功:
+    │               └── 返回结果
+    │
+    └── 返回 AgentTurnResult
+```
+
+**失败条件**:
+
+- API 错误 (401/429/500)
+- 超时
+- Rate Limit
+- 模型不可用
+
+### 旁支处理汇总表
+
+| 旁支处理          | 位置    | 触发条件               | 影响                  |
+| ----------------- | ------- | ---------------------- | --------------------- |
+| **预压缩检查**    | 步骤 8  | history > threshold    | 历史压缩，空出空间    |
+| **内存刷新**      | 步骤 8  | flushInterval到期      | 更新记忆文件          |
+| **Bootstrap注入** | 步骤 13 | 新工作目录             | Prompt 包含项目上下文 |
+| **Sandbox 检查**  | 步骤 13 | config.sandbox.enabled | 隔离执行环境          |
+| **Skills 加载**   | 步骤 13 | config.skills          | Prompt 包含技能说明   |
+| **工具策略过滤**  | 步骤 13 | toolsAllow/policy      | 限制可用工具          |
+| **队列处理**      | 步骤 5  | 多消息并发             | 丢弃/排队/立即执行    |
+| **模型 Fallback** | 步骤 9  | 主模型失败             | 尝试备用模型          |
+
+---
+
 ## 关键机制
 
 ### Fallback（降级）
@@ -683,14 +1390,14 @@ export async function runReplyAgent(params: {
 
 **完整阅读**（按调用顺序）：
 
-从 01 到 15 依次阅读，每步对应调用链中的一个环节。
+从 01 到 16 依次阅读，每步对应调用链中的一个环节。
 
 **调试排查**：根据问题现象定位对应层级：
 
 - 消息未收到 → 检查 01-02（接入层）
 - 消息处理异常 → 检查 03-04（渠道层）
-- LLM 调用失败 → 检查 09-13（执行层）
-- 回复发送失败 → 检查 14-15（发送层）
+- LLM 调用失败 → 检查 09-14（执行层）
+- 回复发送失败 → 检查 15-16（发送层）
 
 ---
 
