@@ -319,7 +319,7 @@ Layer 4: runReplyAgent            → LLM 调用、结果构造
 
 ## PI Agent 输出处理
 
-PI Agent Session 完成后，输出需要经过多层处理才能发送给用户。
+PI Agent Session 的输出需要经过多层处理才能发送给用户。
 
 ### 流式处理机制
 
@@ -471,66 +471,8 @@ PI Agent Session 完成后，输出需要经过多层处理才能发送给用户
 │      └── 返回 ReplyPayload                                                   │
 │                                                                              │
 │  dispatchReplyFromConfig()                                                   │
-│      └── dispatcher.sendFinalReply(payload)                                 │
+│      └── dispatcher.sendFinalReply(payload) → [跳转到 阶段 4]                │
 └─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (15) ReplyDispatcher 发送                                                   │
-│  文件: feishu/src/reply-dispatcher.ts                                        │
-│                                                                              │
-│  sendFinalReply(payload)                                                     │
-│      │                                                                       │
-│      ├── shouldUseCard(text)            → 判断是否使用卡片                   │
-│      │   └── 条件: 包含代码块 || 包含表格                                    │
-│      │                                                                       │
-│      ├── 卡片模式:                                                            │
-│      │   └── sendCardFeishu()           → 发送交互式卡片                    │
-│      │       └── buildFeishuCardPayload()                                   │
-│      │       └── client.im.message.create()                                 │
-│      │                                                                       │
-│      └── 文本模式:                                                            │
-│          └── sendMessageFeishu()        → 发送文本消息                      │
-│              └── buildFeishuPostMessagePayload()                            │
-│              └── client.im.message.create()                                 │
-│                                                                              │
-│  流式更新（并行进行）:                                                        │
-│  sendBlockReply(chunk)                                                       │
-│      │                                                                       │
-│      ├── streamingSession.updateCard() → 更新飞书卡片                       │
-│      │   └── 实时显示生成内容                                                 │
-│      │   └── 用户看到"打字"效果                                               │
-│      │                                                                       │
-│      └── 最终完成时：卡片变为最终回复                                         │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (16) sendMessageFeishu 飞书 API                                             │
-│  文件: feishu/src/send.ts                                                    │
-│                                                                              │
-│  sendMessageFeishu({ to, text, replyToMessageId })                          │
-│      │                                                                       │
-│      ├── resolveFeishuSendTarget()      → 解析发送目标                      │
-│      │   ├── open_id                    → 用户私聊                          │
-│      │   ├── chat_id                    → 群聊                              │
-│      │   └── user_id                    → 用户 ID                           │
-│      │                                                                       │
-│      ├── buildFeishuPostMessagePayload() → 构建消息体                       │
-│      │   ├── msg_type: "post"           → 富文本消息                        │
-│      │   ├── content: PostContent       → 内容结构                          │
-│      │   │   └── [[{ tag: "text", text: "..." }]]                           │
-│      │   └── reply_to_message_id        → 回复原消息                        │
-│      │                                                                       │
-│      └── client.im.message.create()      → 飞书 API 调用                    │
-│          └── POST /im/v1/messages?receive_id_type=open_id                   │
-│          └── Headers: Authorization:Bearer xxx                              │
-│          └── Body: { receive_id, msg_type, content }                        │
-│          └── 返回: { message_id: "om_xxx" }                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-    飞书服务器送达用户
 ```
 
 ### Block Reply vs Final Reply
