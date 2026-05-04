@@ -78,181 +78,241 @@ Layer 4: runReplyAgent            → LLM 调用、结果构造
 
 ---
 
-## 调用架构
+## 完整调用链
 
-消息执行流程分为**三个阶段**：渠道接入 → 回复生成 → 回复发送
+消息执行流程分为**四个阶段**：渠道接入 → 回复生成 → LLM 执行 → 回复发送
 
-### 前置层（渠道接入，步骤 1-4）
+> **Harness 类型说明**：
+>
+> - **PI Harness** (`createPiAgentHarness`) 是 V1 接口，有 `runAttempt()` 方法
+> - **V2 Lifecycle** 是适配层，通过 `adaptAgentHarnessToV2()` 包装 V1
+> - V2 的 `send()` 方法直接调用 V1 的 `runAttempt()` → `runEmbeddedAttempt`
+
+### 阶段 1：渠道接入（步骤 1-4）
 
 ```
+飞书服务器推送消息
+        │
+        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  (1) feishu/src/monitor.transport.ts                        │
 │  作用: WebSocket/Webhook 消息接收                           │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  (2) feishu/src/monitor.message-handler.ts                  │
-│  作用: 事件解析、去重、debounce                              │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  (3) feishu/src/bot.ts:384                                  │
-│  作用: 权限检查、路由解析、构建 Agent 输入                   │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  (4) channels/turn/kernel.ts:300                            │
-│  作用: Turn 生命周期编排 (ingest → dispatch → finalize)     │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 核心四层（回复生成，步骤 5-8）
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Layer 1: dispatchReplyFromConfig                           │
-│  文件: src/auto-reply/reply/dispatch-from-config.ts         │
-│  作用: 分发协调 - 路由决策、快速路径、调用准备器             │
-│  行数: ~1549                                                 │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Layer 2: getReplyFromConfig                                 │
-│  文件: src/auto-reply/reply/get-reply.ts                     │
-│  作用: 回复准备 - 模型选择、会话初始化、调用执行器           │
-│  行数: ~680                                                  │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Layer 3: runPreparedReply                                    │
-│  文件: src/auto-reply/reply/get-reply-run.ts                 │
-│  作用: 执行准备 - prompt 构建、silent 处理、调用编排器       │
-│  行数: ~1059                                                 │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Layer 4: runReplyAgent                                       │
-│  文件: src/auto-reply/reply/agent-runner.ts                  │
-│  作用: Agent 编排 - 队列管理、压缩、LLM 调用、结果构造       │
-│  行数: ~1869                                                 │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### 执行层（LLM 调用，步骤 9-14）
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  (9)  runAgentTurnWithFallback                               │
-│  文件: src/auto-reply/reply/agent-runner-execution.ts        │
-│  作用: Model fallback 策略                                   │
-│  行数: ~2078                                                 │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  (10) runEmbeddedPiAgent                                     │
-│  文件: src/agents/pi-embedded-runner/run.ts                  │
-│  作用: Harness 选择、模型解析                                │
-│  行数: ~700                                                  │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  (11) runAgentHarnessAttempt                                 │
-│  文件: src/agents/harness/selection.ts                       │
-│  作用: Harness 选择和适配 (V1 → V2 wrapper)                  │
-│  行数: ~400                                                  │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  (12) runAgentHarnessV2LifecycleAttempt                      │
-│  文件: src/agents/harness/v2.ts                              │
-│  作用: V2 生命周期 (prepare → start → send → resolve)        │
-│  行数: ~260                                                  │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  (13) runEmbeddedAttempt                                     │
-│  文件: src/agents/pi-embedded-runner/run/attempt.ts          │
-│  作用: 核心执行 - Session/Prompt/工具准备                     │
-│  行数: ~3700                                                 │
-│                                                              │
-│  关键组件 (PI Agent):                                        │
-│  ├── SessionManager.open() ← @mariozechner/pi-coding-agent  │
-│  ├── createAgentSession() ← @mariozechner/pi-coding-agent   │
-│  │   └── 创建 PI Agent Session                              │
-│  │   └── session.agent.streamFn = Provider.streamCompletion │
-│  │                                                          │
-│  关键组件 (Tools):                                           │
-│  ├── createOpenClawCodingTools() → 核心工具集               │
-│  │   └── read/write/edit/grep/exec/web_search/message...   │
-│  ├── getOrCreateSessionMcpRuntime() → MCP 工具              │
-│  ├── createBundleLspToolRuntime() → LSP 工具                │
-│  └── applyEmbeddedAttemptToolsAllow() → 工具过滤             │
-│                                                              │
-│  关键组件 (Stream):                                          │
-│  ├── registerProviderStreamForModel → providerStreamFn      │
-│  ├── resolveEmbeddedAgentStreamFn → 包装赋值                │
-│  └── subscribeEmbeddedPiSession → PI Session 订阅          │
-│                                                              │
-│  PI Agent Session 内部调用 Provider API                     │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  PI Agent Session (@mariozechner/pi-coding-agent)           │
-│                                                              │
-│  session.subscribe(eventHandler)                            │
-│      │                                                       │
-│      └── PI Session 内部运行循环                             │
-│          │                                                   │
-│          ├── 调用 session.agent.streamFn()                  │
-│          │   │                                               │
-│          │   └── [跳转到 (14) Provider.streamCompletion]     │
-│          │                                                   │
-│          ├── 接收 LLM 响应流                                 │
-│          ├── 触发 eventHandler (assistantMessage/toolCall)  │
-│          └── 工具执行循环                                    │
-│                                                              │
-│  核心: PI Agent 管理整个 LLM 对话循环                        │
+│  核心函数:                                                   │
+│  ├── WebSocket: monitorWebSocket()                          │
+│  │   └── createFeishuWSClient() → wsClient.start()          │
+│  └── Webhook: monitorWebhook()                              │
+│      └── http.createServer() → 验证签名 → 分发              │
+│  输出: eventDispatcher                                       │
 └─────────────────────────────────────────────────────────────┘
         │
         ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  (14) Provider.streamCompletion                              │
-│  文件: extensions/*/src/provider.ts                          │
+│  (2) feishu/src/monitor.message-handler.ts                  │
+│  作用: 事件解析、去重、debounce                              │
+│  核心函数: createFeishuMessageReceiveHandler()               │
+│  ├── parseFeishuMessageEventPayload() → 解析 payload        │
+│  ├── tryBeginFeishuMessageProcessing() → 去重               │
+│  └── inboundDebouncer.enqueue() → debounce                  │
+│  输出: FeishuMessageEvent                                    │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  (3) feishu/src/bot.ts:384                                  │
+│  作用: 权限检查、路由解析、构建 Agent 输入                   │
+│  核心函数: handleFeishuMessage()                             │
+│  ├── isFeishuGroupAllowed() → 权限检查                       │
+│  └── buildFeishuAgentBody() → 构建 Agent 输入文本           │
+│  输出: { agentBody, dispatcher, sessionKey }                 │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  (4) channels/turn/kernel.ts:300                            │
+│  作用: Turn 生命周期编排                                     │
+│  核心函数: runChannelTurn()                                  │
+│  Phase: ingest → preflight → resolve → dispatch → finalize  │
+│  输出: runDispatch()                                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 阶段 2：回复生成四层（步骤 5-8）
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  (5) dispatchReplyFromConfig                                │
+│  文件: auto-reply/reply/dispatch-from-config.ts (~1549行)   │
+│  作用: 分发协调 - 路由决策、快速路径                         │
+│  核心函数: dispatchReplyFromConfig()                         │
+│  ├── resolveSessionStoreLookup() → Session Store            │
+│  ├── resolveSessionAgentId() → Agent ID                     │
+│  └── getReplyFromConfig() → [跳转到 (6)]                     │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  (6) getReplyFromConfig                                     │
+│  文件: auto-reply/reply/get-reply.ts (~680行)               │
+│  作用: 回复准备 - 模型选择、会话初始化                       │
+│  核心函数: getReplyFromConfig()                              │
+│  ├── resolveDefaultModel() → { provider, model }            │
+│  └── runPreparedReply() → [跳转到 (7)]                       │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  (7) runPreparedReply                                       │
+│  文件: auto-reply/reply/get-reply-run.ts (~1059行)          │
+│  作用: 执行准备 - prompt 构建                                │
+│  核心函数: runPreparedReply()                                │
+│  ├── resolvePromptSessionContext() → Prompt 上下文          │
+│  └── runReplyAgent() → [跳转到 (8)]                          │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  (8) runReplyAgent                                          │
+│  文件: auto-reply/reply/agent-runner.ts (~1869行)           │
+│  作用: Agent 编排 - 队列、压缩、LLM 调用                     │
+│  核心函数: runReplyAgent()                                   │
+│  ├── runPreflightCompactionIfNeeded() → 预压缩              │
+│  ├── runMemoryFlushIfNeeded() → 内存刷新                     │
+│  └── runAgentTurnWithFallback() → [跳转到 (9)]               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 阶段 3：LLM 执行（步骤 9-14）
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  (9) runAgentTurnWithFallback                               │
+│  文件: auto-reply/reply/agent-runner-execution.ts (~2078行) │
+│  作用: Model fallback 策略                                  │
+│  核心函数: runAgentTurnWithFallback()                        │
+│  └── 处理 fallback: 主模型失败 → 尝试备用模型               │
+│  └── runEmbeddedPiAgent() → [跳转到 (10)]                    │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  (10) runEmbeddedPiAgent                                    │
+│  文件: agents/pi-embedded-runner/run.ts (~700行)            │
+│  作用: Harness 选择、模型解析                                │
+│  核心函数: runEmbeddedPiAgent()                              │
+│  ├── selectAgentHarness() → 选择 Harness                    │
+│  └── runAgentHarnessAttempt() → [跳转到 (11)]                │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  (11) runAgentHarnessAttempt                                │
+│  文件: agents/harness/selection.ts (~400行)                 │
+│  作用: Harness 选择和适配                                    │
+│  核心流程:                                                   │
+│  ├── selectAgentHarnessDecision() → 选择结果                │
+│  │   ├── "pi" (默认) → createPiAgentHarness()               │
+│  │   └── plugin harness → 注册的插件 harness                │
+│  └── adaptAgentHarnessToV2() → V2 包装                      │
+│      └── { prepare, start, send, resolveOutcome, cleanup }  │
+│  └── runAgentHarnessV2LifecycleAttempt() → [跳转到 (12)]     │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  (12) runHarnessV2LifecycleAttempt                          │
+│  文件: agents/harness/v2.ts (~260行)                        │
+│  作用: V2 生命周期（适配层）                                 │
+│  核心流程:                                                   │
+│  ├── harness.prepare() → 标记 prepared                      │
+│  ├── harness.start() → 标记 started                         │
+│  ├── harness.send() → [核心] 调用 V1.runAttempt             │
+│  │   └── PI Harness.runAttempt → runEmbeddedAttempt         │
+│  ├── harness.resolveOutcome() → 分类                        │
+│  └── harness.cleanup() → 清理                               │
+│                                                              │
+│  ★ 关键: V2 是适配层，实际执行在 V1.runAttempt              │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  (13) runEmbeddedAttempt ★ 核心执行                         │
+│  文件: agents/pi-embedded-runner/run/attempt.ts (~3700行)   │
+│  作用: Session/Prompt/工具准备、PI Agent 执行                │
+│                                                              │
+│  6 个阶段:                                                   │
+│  [A] 初始化: workspace/sandbox/skills                       │
+│  [B] Tools: createOpenClawCodingTools + MCP/LSP + 过滤       │
+│  [C] ★ PI Agent Session:                                    │
+│      ├── SessionManager.fromFile ← @mariozechner/pi-agent   │
+│      └── createAgentSession ← @mariozechner/pi-agent        │
+│          └── 返回 AgentSession，管理 conversation loop      │
+│  [D] Prompt: systemPrompt + bootstrap files                 │
+│  [E] StreamFn: register → 包装 → subscribe → PI Session     │
+│  [F] 结果: 分类 + 统计 + 清理                                │
+│                                                              │
+│  输出: EmbeddedRunAttemptResult                              │
+│        { assistantTexts, toolMetas, usage }                  │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  ★ PI Agent Session Conversation Loop                       │
+│  来源: @mariozechner/pi-coding-agent                        │
+│                                                              │
+│  流程:                                                       │
+│  1. subscribeEmbeddedPiSession → session.subscribe(handler) │
+│     └── 注册事件处理器（接收 message_update/tool_execution）│
+│                                                              │
+│  2. activeSession.prompt() → 启动对话循环                   │
+│     └── 循环: streamFn() → Provider.streamCompletion        │
+│         ├── text chunk → message_update 事件                │
+│         ├── toolCall → executeToolCall → 继续循环 ↺         │
+│         └── finishReason → 结束 ✓                           │
+│                                                              │
+│  ★ 核心: PI Agent 管理 LLM 对话循环                         │
+└─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────┐
+│  (14) Provider.streamCompletion                             │
+│  文件: extensions/*/src/provider.ts                         │
 │  作用: LLM API 调用                                          │
 │                                                              │
-│  调用时机:                                                   │
-│  ├── runEmbeddedAttempt 注册 streamFn                       │
-│  └── PI Agent Session 运行时调用 streamFn                   │
-│      └── HTTP POST → LLM Provider API                       │
-│                                                              │
+│  调用时机: PI Agent Session 运行时调用 streamFn             │
 │  返回: AsyncIterable<StreamChunk>                            │
+│        { text, toolCall, finishReason }                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 后置层（回复发送，步骤 15-16）
+### 阶段 4：回复发送（步骤 15-16）
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  (15) feishu/src/reply-dispatcher.ts                        │
-│  作用: 回复分发 (Block/Final Reply)                         │
+│  (15) ReplyDispatcher                                       │
+│  文件: feishu/src/reply-dispatcher.ts                       │
+│  作用: 回复分发（Block/Final Reply）                        │
+│                                                              │
+│  sendBlockReply(chunk) → 流式更新飞书卡片                   │
+│  sendFinalReply(payload) → 最终完整回复                     │
+│      ├── shouldUseCard() → 判断卡片/文本                    │
+│      └── sendCardFeishu() | sendMessageFeishu()             │
 └─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
+        │
+        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  (16) feishu/src/send.ts                                    │
+│  (16) sendMessageFeishu                                     │
+│  文件: feishu/src/send.ts                                   │
 │  作用: 飞书 API 发送                                         │
+│                                                              │
+│  核心流程:                                                   │
+│  ├── resolveFeishuSendTarget() → 解析目标                   │
+│  ├── buildFeishuPostMessagePayload() → 构建消息体           │
+│  └── client.im.message.create() → POST API                  │
+│      └── 返回: { message_id }                                │
 └─────────────────────────────────────────────────────────────┘
+        │
+        ▼
+    飞书服务器送达用户
 ```
 
 ---
@@ -525,282 +585,6 @@ type ReplyPayload = {
   sessionId?: string;
   runId?: string;
 };
-```
-
----
-
-## 16 步调用链（完整路径）
-
-> **Harness 类型说明**：
->
-> - **PI Harness** (`createPiAgentHarness`) 是 **V1 接口** (`AgentHarness`)，有 `runAttempt()` 方法
-> - **V2 Lifecycle** (`runAgentHarnessV2LifecycleAttempt`) 是适配层，通过 `adaptAgentHarnessToV2()` 包装 V1
-> - V2 的 `send()` 方法直接调用 V1 的 `runAttempt()` → `runEmbeddedAttempt`
-> - 所有准备工作（Prompt、Tools、Session）都在 `runEmbeddedAttempt` 内部完成
-
-```
-飞书服务器推送消息（WebSocket 或 Webhook）
-        │
-        ├─────────────────────────────────────────┐
-        │                                         │
-        ▼ (WebSocket 模式)                  ▼ (Webhook 模式)
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (1) feishu/src/monitor.transport.ts                                           │
-│     WebSocket 模式: monitorWebSocket()                                       │
-│     ├── createFeishuWSClient()            → 连接飞书 WebSocket              │
-│     └── wsClient.start({ eventDispatcher }) → 启动事件分发                  │
-│                                                                              │
-│     Webhook 模式: monitorWebhook()                                           │
-│     ├── http.createServer()               → 创建 HTTP 服务器                │
-│     ├── isFeishuWebhookSignatureValid()   → 验证签名                        │
-│     └── eventDispatcher.invoke()          → 分发事件                        │
-│                                                                              │
-│     输出: eventDispatcher 分发到 message-handler                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (2) feishu/src/monitor.message-handler.ts                                     │
-│     createFeishuMessageReceiveHandler()                                      │
-│     ├── parseFeishuMessageEventPayload()  → 解析消息 payload                │
-│     ├── tryBeginFeishuMessageProcessing()  → 去重检查                       │
-│     ├── inboundDebouncer.enqueue()         → debounce 处理                  │
-│     └── dispatchFeishuMessage()            → 调用 handleMessage             │
-│                                                                              │
-│     输出: FeishuMessageEvent                                                 │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (3) feishu/src/bot.ts:384                                                     │
-│     handleFeishuMessage({ cfg, event, accountId })                          │
-│     ├── parseFeishuMessageEvent()         → 解析消息内容                     │
-│     ├── resolveFeishuSenderName()         → 获取发送者名称                   │
-│     ├── isFeishuGroupAllowed()            → 权限检查                         │
-│     ├── buildFeishuAgentBody():269        → 构建 Agent 输入文本              │
-│     └── createFeishuReplyDispatcher()     → 创建回复分发器                   │
-│                                                                              │
-│     输出: { agentBody, dispatcher, sessionKey }                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (4) channels/turn/kernel.ts:300                                               │
-│     runChannelTurn({ channel, accountId, raw, adapter })                    │
-│     ├── adapter.ingest()                   → 解析输入                        │
-│     ├── adapter.preflight()                → 预检查                          │
-│     ├── adapter.resolveTurn()              → 解析 Turn                       │
-│     │   └── 返回: { routeSessionKey, storePath, ctxPayload, runDispatch }   │
-│     └── adapter.resolveTurn().runDispatch()                                 │
-│                                                                              │
-│     Phase: ingest → preflight → resolve → dispatch → finalize               │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (5) auto-reply/reply/dispatch-from-config.ts:334                              │
-│     dispatchReplyFromConfig({ ctx, cfg, dispatcher })                       │
-│     ├── resolveSessionStoreLookup()        → 解析 Session Store             │
-│     ├── resolveSessionAgentId()            → 解析 Agent ID                  │
-│     ├── resolveAgentConfig()               → 解析 Agent 配置                 │
-│     ├── getReplyFromConfig()               → [跳转到 (6)]                     │
-│     └── dispatcher.sendFinalReply()        → [跳转到 (14)]                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (6) auto-reply/reply/get-reply.ts:173                                        │
-│     getReplyFromConfig(ctx, opts)                                            │
-│     ├── resolveDefaultModel()              → 模型选择                        │
-│     │   └── 输出: { provider: "bailian", model: "glm-5" }                   │
-│     ├── resolveAgentWorkspaceDir()         → 工作目录                        │
-│     ├── ensureAgentWorkspace()             → 创建工作空间                    │
-│     └── runPreparedReply()                 → [跳转到 (7)]                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (7) auto-reply/reply/get-reply-run.ts:343                                    │
-│     runPreparedReply(params)                                                 │
-│     ├── resolvePromptSessionContext()      → 构建 Prompt 上下文              │
-│     ├── resolveSilentReplySettings()       → 静默回复设置                    │
-│     └── runReplyAgent()                     → [跳转到 (8)]                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (8) auto-reply/reply/agent-runner.ts:888                                     │
-│     runReplyAgent(params)                                                    │
-│     ├── 创建 TypingSignaler                → 打字状态管理                    │
-│     ├── runPreflightCompactionIfNeeded()   → 预压缩检查                      │
-│     ├── runMemoryFlushIfNeeded()           → 内存刷新                        │
-│     └── runAgentTurnWithFallback()         → [跳转到 (9)]                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (9) auto-reply/reply/agent-runner-execution.ts:871                           │
-│     runAgentTurnWithFallback(params)                                         │
-│     ├── resolveQueuedReplyRuntimeConfig()   → 解析运行配置                   │
-│     ├── 处理 model fallback 逻辑            → 模型降级策略                   │
-│     └── runEmbeddedPiAgent()                → [跳转到 (10)]                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (10) agents/pi-embedded-runner/run.ts:303                                    │
-│     runEmbeddedPiAgent(params)                                               │
-│     ├── resolveSessionLane()                → 解析会话 Lane                  │
-│     ├── selectAgentHarness()                → 选择 Harness (V2)              │
-│     ├── resolveModelAsync()                 → 动态模型解析                   │
-│     └── runEmbeddedAttemptWithBackend()     → [跳转到 (11)]                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (11) agents/harness/selection.ts:153                                         │
-│     runAgentHarnessAttempt(params)                                            │
-│                                                                              │
-│     Harness 选择和适配:                                                       │
-│     ├── selectAgentHarnessDecision()        → 选择 Harness                   │
-│     │   ├── 检查 agentHarnessId 配置       → 显式指定?                       │
-│     │   ├── 检查 Plugin Harness 支持度     → supports(provider/model)        │
-│     │   └── 选择结果:                       │
-│     │       ├── "pi" (默认)                 → createPiAgentHarness()         │
-│     │       └── plugin harness              → 注册的插件 harness             │
-│     │                                                                        │
-│     ├── createPiAgentHarness()              → AgentHarness (V1 接口)         │
-│     │   └── { id: "pi", runAttempt: runEmbeddedAttempt }                     │
-│     │                                                                        │
-│     └── adaptAgentHarnessToV2(harness)      → AgentHarnessV2 (V2 包装)       │
-│         ├── prepare: async () → { lifecycleState: "prepared" }              │
-│         ├── start: async () → { lifecycleState: "started" }                 │
-│         ├── send: async () → harness.runAttempt()  ← V1.runAttempt          │
-│         ├── resolveOutcome: async () → applyClassification()               │
-│         └── cleanup: async () → {}                                           │
-│                                                                              │
-│     └── runAgentHarnessV2LifecycleAttempt() → [跳转到 (12)]                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (12) agents/harness/v2.ts:187                                                │
-│     runAgentHarnessV2LifecycleAttempt(harness, params)                       │
-│                                                                              │
-│     Lifecycle (V2 适配层，包装 V1 Harness):                                  │
-│     ├── harness.prepare(params)            → 标记 prepared 状态              │
-│     ├── harness.start(prepared)            → 标记 started 状态               │
-│     ├── harness.send(session)              → [核心] 调用 V1.runAttempt       │
-│     │   │                                                                    │
-│     │   │  V2.send() 内部:                                                   │
-│     │   │  harness.runAttempt(session.params)  ← 来自 V1 AgentHarness       │
-│     │   │                                                                    │
-│     │   └── PI Harness V1.runAttempt → runEmbeddedAttempt (~3700 行)        │
-│     │       ├── [阶段 A] 初始化: workspace/sandbox/skills                   │
-│     │       ├── [阶段 B] Tools: createOpenClawCodingTools + MCP/LSP         │
-│     │       ├── [阶段 C] Session: SessionManager + PI Session               │
-│     │       ├── [阶段 D] Prompt: systemPrompt + bootstrap files             │
-│     │       ├── [阶段 E] StreamFn 注册 + 执行                                │
-│     │       │   └── subscribeEmbeddedPiSession → PI Session 循环            │
-│     │       │       └── streamFn → [跳转到 (14)]                            │
-│     │       └── [阶段 F] 结果: 构造返回 + 清理                               │
-│     ├── harness.resolveOutcome()           → 应用 result classification     │
-│     └── harness.cleanup()                  → 清理资源                        │
-│                                                                              │
-│     输出: EmbeddedRunAttemptResult { assistantTexts, toolMetas, usage }      │
-│                                                                              │
-│     关键: V2 lifecycle 是适配层，实际执行都在 V1.runAttempt/runEmbeddedAttempt│
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (13) agents/pi-embedded-runner/run/attempt.ts:704                           │
-│     runEmbeddedAttempt(params)                                               │
-│                                                                              │
-│     核心执行函数 (~3700 行):                                                  │
-│     ├── [阶段 A] 初始化: workspace/sandbox/skills                            │
-│     ├── [阶段 B] Tools 构建:                                                 │
-│     │   ├── createOpenClawCodingTools() → 核心工具集                         │
-│     │   │   └── read/write/edit/grep/exec/web_search/message...             │
-│     │   ├── getOrCreateSessionMcpRuntime() → MCP 工具                        │
-│     │   ├── createBundleLspToolRuntime() → LSP 工具                          │
-│     │   └── applyEmbeddedAttemptToolsAllow() → 工具过滤                       │
-│     ├── [阶段 C] Session (PI Agent):                                        │
-│     │   ├── SessionManager.open() ← @mariozechner/pi-coding-agent           │
-│     │   ├── createAgentSession() ← @mariozechner/pi-coding-agent            │
-│     │   │   └── 创建 PI Agent Session                                       │
-│     │   │   └── 设置 systemPrompt, tools                                    │
-│     │   └── history 处理                                                    │
-│     ├── [阶段 D] Prompt: systemPrompt + bootstrap files                     │
-│     ├── [阶段 E] StreamFn 注册:                                             │
-│     │       │                                                                │
-│     │       ├── registerProviderStreamForModel → providerStreamFn           │
-│     │       │   └── providerStreamFn = Provider.streamCompletion            │
-│     │       │                                                                │
-│     │       └── resolveEmbeddedAgentStreamFn                                │
-│     │           └── session.agent.streamFn = 包装后的 streamFn              │
-│     │                                                                        │
-│     ├── [阶段 E-2] 执行:                                                    │
-│     │       │                                                                │
-│     │       └── subscribeEmbeddedPiSession({ session })                     │
-│     │           │                                                            │
-│     │           └── session.subscribe(eventHandler)                         │
-│     │               │                                                        │
-│     │               └── ★ PI Agent Session 运行循环                          │
-│     │                   │                                                    │
-│     │                   ├── 调用 session.agent.streamFn()                   │
-│     │                   │   └── [跳转到 (14) Provider.streamCompletion]      │
-│     │                   │                                                    │
-│     │                   ├── 接收 LLM 响应                                    │
-│     │                   ├── 触发 eventHandler                                │
-│     │                   └── 工具执行循环                                     │
-│     │                                                                        │
-│     └── [阶段 F] 结果: 构造返回 + 清理                                        │
-│                                                                              │
-│     ★ 核心: @mariozechner/pi-coding-agent 管理 LLM 对话循环                  │
-│                                                                              │
-│     输出: EmbeddedRunAttemptResult { assistantTexts, toolMetas, usage }      │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (14) bailian/src/provider.ts (或其他 Provider)                              │
-│     streamCompletion({ model, messages, tools })                             │
-│     ├── callBailianApi()                   → HTTP POST                       │
-│     │   └── https://bailian.aliyuncs.com/v1/chat/completions                │
-│     └── parseBailianStreamChunk()          → 解析流式响应                    │
-│         └── AsyncIterable<StreamChunk>                                      │
-│             ├── { text: "国内模型..." }                                      │
-│             ├── { toolCall: { name, args } }                                │
-│             └── { finishReason: "stop" }                                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │  流式返回
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (15) feishu/src/reply-dispatcher.ts:131                                      │
-│     dispatcher.sendBlockReply() (流式)                                       │
-│     ├── streamingSession.updateCard()      → 更新飞书卡片                   │
-│     │   └── 实时显示生成内容                                                 │
-│                                                                              │
-│     dispatcher.sendFinalReply() (最终)                                       │
-│     ├── shouldUseCard()                    → 判断是否卡片                   │
-│     │   └── 条件: 代码块 | 表格                                              │
-│     └── sendMessageFeishu() | sendCardFeishu() → [跳转到 (16)]               │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  (16) feishu/src/send.ts:549                                                  │
-│     sendMessageFeishu({ to, text, replyToMessageId })                        │
-│     ├── resolveFeishuSendTarget()          → 解析发送目标                   │
-│     ├── buildFeishuPostMessagePayload()    → 构建消息体                     │
-│     └── client.im.message.create()         → 飞书 API                       │
-│         └── POST /im/v1/messages?receive_id_type=open_id                    │
-│         └── 返回: { message_id: "om_xxx" }                                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-        │
-        ▼
-    飞书服务器送达用户
 ```
 
 ---

@@ -62,9 +62,11 @@ export async function runEmbeddedAttempt(
 │                                                                 │
 │  [阶段 E-2] ★ PI Agent 执行 (1920-3200)                          │
 │  ├── subscribeEmbeddedPiSession                                │
-│  │   └── session.subscribe() ← PI Agent Session                │
-│  │       └── [Conversation Loop] ← @mariozechner/pi-coding-agent│
-│  │           └── 循环: streamFn() → Provider.streamCompletion  │
+│  │   └── session.subscribe(handler) ← 注册事件处理器           │
+│  │                                                              │
+│  ├── activeSession.prompt() ← 启动对话循环                     │
+│  │   └── [Conversation Loop] ← @mariozechner/pi-coding-agent   │
+│  │       └── 循环: streamFn() → Provider.streamCompletion      │
 │  │                                                              │
 │  ├── 工具执行循环 (PI Agent 管理)                              │
 │  └── 流式响应处理                                              │
@@ -93,29 +95,29 @@ runEmbeddedAttempt
     ├── resolveEmbeddedAgentStreamFn → 包装成 streamFn
     │   └── session.agent.streamFn = streamFn
     │
-    └── subscribeEmbeddedPiSession
+    ├── subscribeEmbeddedPiSession
+    │       │
+    │       └── session.subscribe(handler) ← 注册事件处理器
+    │
+    └── activeSession.prompt() ← ★ 启动 PI Agent 对话循环
             │
-            └── session.subscribe() ← PI Agent Session 内部订阅
+            └── [PI Agent Conversation Loop] ← @mariozechner/pi-coding-agent
                     │
-                    └── [PI Agent Conversation Loop] ← ★ @mariozechner/pi-coding-agent
-                    │       │
-                    │       └── 循环执行直到完成:
-                    │           │
-                    │           ├── session.agent.streamFn(model, context, options)
-                    │           │   │
-                    │           │   └── Provider.streamCompletion ← 此时才真正调用
-                    │           │       │
-                    │           │       └── 流式响应 → toolCall?
-                    │           │               │
-                    │           │               ├── 有 toolCall → executeToolCall
-                    │           │               │       │
-                    │           │               │       └── 继续循环 ↺
-                    │           │               │
-                    │           │               └── 无 toolCall → 结束循环 ✓
-                    │           │
-                    │           └── 收集结果
-                    │
-                    └── 返回 subscribeResult
+                    └── 循环执行直到完成:
+                        │
+                        ├── session.agent.streamFn(model, context, options)
+                        │   │
+                        │   └── Provider.streamCompletion ← 此时才真正调用
+                        │       │
+                        │       └── 流式响应 → toolCall?
+                        │               │
+                        │               ├── 有 toolCall → executeToolCall
+                        │               │       │
+                        │               │       └── 继续循环 ↺
+                        │               │
+                        │               └── 无 toolCall → 结束循环 ✓
+                        │
+                        └── 收集结果
 ```
 
 ---
@@ -565,36 +567,42 @@ runEmbeddedAttempt
     ├── resolveEmbeddedAgentStreamFn → 包装成 streamFn
     │   └── session.agent.streamFn = streamFn
     │
-    └── subscribeEmbeddedPiSession({ session })
+    ├── subscribeEmbeddedPiSession({ session })
+    │       │
+    │       └── session.subscribe(handler) ← 注册事件处理器
+    │       └── 返回 subscription
+    │
+    └── activeSession.prompt() ← ★ 启动对话循环
             │
-            └── session.subscribe() ← PI Agent Session 内部订阅
+            └── [PI Agent Conversation Loop] ← @mariozechner/pi-coding-agent
                     │
-                    └── [PI Agent Conversation Loop] ← ★ @mariozechner/pi-coding-agent
+                    └── 循环: session.agent.streamFn()
                             │
-                            └── 循环: session.agent.streamFn()
-                                    │
-                                    └── Provider.streamCompletion ← 此时才真正调用
+                            └── Provider.streamCompletion ← 此时才真正调用
 ```
 
 ### 执行流程
 
 ```
-subscribeEmbeddedPiSession(session)
-    │
-    └── session.subscribe() ← PI Agent Session (@mariozechner/pi-coding-agent)
-            │
-            └── [PI Agent Conversation Loop 启动]
-                    │
-                    ├── 调用 session.agent.streamFn(model, context, options)
-                    │   │
-                    │   └── Provider.streamCompletion
-                    │       │
-                    │       ├── HTTP POST → LLM Provider API
-                    │       │
-                    │       └── AsyncIterable<StreamChunk>
-                    │           ├── text chunk → onAssistantMessage
-                    │           ├── toolCall → executeToolCall
-                    │           └── finishReason → 检查是否继续
+subscribeEmbeddedPiSession → session.subscribe(handler)
+        │
+        └── 注册事件处理器（message_update, tool_execution 等）
+        └── 返回 subscription
+
+activeSession.prompt() ← ★ 启动 PI Agent 对话循环
+        │
+        └── [PI Agent Conversation Loop] ← @mariozechner/pi-coding-agent
+                │
+                ├── 调用 session.agent.streamFn(model, context, options)
+                │   │
+                │   └── Provider.streamCompletion
+                │       │
+                │       ├── HTTP POST → LLM Provider API
+                │       │
+                │       └── AsyncIterable<StreamChunk>
+                │           ├── text chunk → message_update 事件
+                │           ├── toolCall → executeToolCall
+                │           └── finishReason → 检查是否继续
                     │
                     ├── 工具执行循环 (如有 toolCall) ← PI Agent 管理
                     │   │
@@ -927,11 +935,13 @@ runEmbeddedAttempt (13)
     │
     ├── subscribeEmbeddedPiSession
     │       │
-    │       └── session.subscribe() ← PI Agent Session 内部
+    │       └── session.subscribe(handler) ← 注册事件处理器
+    │
+    ├── activeSession.prompt() ← 启动对话循环
+    │       │
+    │       └── [PI Agent Conversation Loop]
     │               │
-    │               └── [PI Agent Conversation Loop]
-    │                       │
-    │                       └── streamFn → Provider.streamCompletion (14)
+    │               └── streamFn → Provider.streamCompletion (14)
     │
     └── sessionManager.store()
 ```
