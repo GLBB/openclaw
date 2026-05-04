@@ -962,13 +962,14 @@ export async function dispatchReplyFromConfig(params: {
 
 ### 5.1 流程概览
 
-**完整调用链**（10 个关键步骤）：
+**完整调用链**（15 个关键步骤）：
 
 ```
 飞书服务器 → feishu/monitor.transport.ts → monitor.message-handler.ts →
 bot.ts:handleFeishuMessage() → channels/turn/kernel.ts →
 auto-reply/dispatch-from-config.ts → get-reply.ts → get-reply-run.ts →
-agents/harness/v2.ts → Provider API (百炼) → reply-dispatcher.ts → send.ts → 飞书 API
+agent-runner.ts → agent-runner-execution.ts → pi-embedded-runner/run.ts →
+harness/selection.ts → harness/v2.ts → Provider API (百炼) → reply-dispatcher.ts → send.ts → 飞书 API
 ```
 
 > **注意**：飞书消息**不是**通过 Gateway WebSocket 进来的。Gateway WebSocket 用于 OpenClaw 客户端与 Gateway 通信。
@@ -980,7 +981,26 @@ agents/harness/v2.ts → Provider API (百炼) → reply-dispatcher.ts → send.
 
 > 以下图示展示函数调用的完整路径，每个节点标注核心函数和关键输出。
 
-#### 5.2.1 主调用链（10 步完整路径）
+#### 5.2.1 主调用链（15 步完整路径）
+
+> **Harness 类型说明**：
+>
+> - **PI Harness** (`createPiAgentHarness`) 是 **V1 接口** (`AgentHarness`)，有 `runAttempt()` 方法
+> - **V2 Lifecycle** (`runAgentHarnessV2LifecycleAttempt`) 是适配层，通过 `adaptAgentHarnessToV2()` 包装 V1
+> - V2 的 `send()` 方法直接调用 V1 的 `runAttempt()` → `runEmbeddedAttempt`
+> - 所有准备工作（Prompt、Tools、Session）都在 `runEmbeddedAttempt` 内部完成
+
+```
+selectAgentHarnessDecision()
+    ↓ 选择
+createPiAgentHarness() → AgentHarness (V1) { runAttempt: runEmbeddedAttempt }
+    ↓ 适配
+adaptAgentHarnessToV2() → AgentHarnessV2 (V2 wrapper)
+    ↓ 执行
+runAgentHarnessV2LifecycleAttempt()
+    ↓ V2.send()
+V1.runAttempt() → runEmbeddedAttempt (~3000 行)
+```
 
 ```
 飞书服务器推送消息（WebSocket 或 Webhook）
@@ -1048,7 +1068,7 @@ agents/harness/v2.ts → Provider API (百炼) → reply-dispatcher.ts → send.
 │     ├── resolveSessionAgentId()            → 解析 Agent ID                  │
 │     ├── resolveAgentConfig()               → 解析 Agent 配置                 │
 │     ├── getReplyFromConfig()               → [跳转到 (6)]                     │
-│     └── dispatcher.sendFinalReply()        → [跳转到 (10)]                    │
+│     └── dispatcher.sendFinalReply()        → [跳转到 (14)]                    │
 └─────────────────────────────────────────────────────────────────────────────┘
         │
         ▼
@@ -1068,33 +1088,99 @@ agents/harness/v2.ts → Provider API (百炼) → reply-dispatcher.ts → send.
 │     runPreparedReply(params)                                                 │
 │     ├── resolvePromptSessionContext()      → 构建 Prompt 上下文              │
 │     ├── resolveSilentReplySettings()       → 静默回复设置                    │
-│     └── runAgentHarnessV2LifecycleAttempt() → [跳转到 (8)]                    │
+│     └── runReplyAgent()                     → [跳转到 (8)]                    │
 └─────────────────────────────────────────────────────────────────────────────┘
         │
         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  (8) agents/harness/v2.ts:187                                                 │
-│     runAgentHarnessV2LifecycleAttempt(harness, params)                      │
+│  (8) auto-reply/reply/agent-runner.ts:888                                     │
+│     runReplyAgent(params)                                                    │
+│     ├── 创建 TypingSignaler                → 打字状态管理                    │
+│     ├── runPreflightCompactionIfNeeded()   → 预压缩检查                      │
+│     ├── runMemoryFlushIfNeeded()           → 内存刷新                        │
+│     └── runAgentTurnWithFallback()         → [跳转到 (9)]                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (9) auto-reply/reply/agent-runner-execution.ts:871                           │
+│     runAgentTurnWithFallback(params)                                         │
+│     ├── resolveQueuedReplyRuntimeConfig()   → 解析运行配置                   │
+│     ├── 处理 model fallback 逻辑            → 模型降级策略                   │
+│     └── runEmbeddedPiAgent()                → [跳转到 (10)]                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (10) agents/pi-embedded-runner/run.ts:303                                    │
+│     runEmbeddedPiAgent(params)                                               │
+│     ├── resolveSessionLane()                → 解析会话 Lane                  │
+│     ├── selectAgentHarness()                → 选择 Harness (V2)              │
+│     ├── resolveModelAsync()                 → 动态模型解析                   │
+│     └── runEmbeddedAttemptWithBackend()     → [跳转到 (11)]                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (11) agents/harness/selection.ts:153                                         │
+│     runAgentHarnessAttempt(params)                                            │
 │                                                                              │
-│     Lifecycle:                                                               │
-│     ├── harness.prepare(params)            → 准备运行                        │
-│     │   ├── buildSystemPrompt()            → System Prompt                  │
-│     │   ├── buildToolDefinitions()         → 工具定义                        │
-│     │   └── resolveProviderRuntime()       → 获取 Provider                  │
-│     ├── harness.start(prepared)            → 启动 Session                   │
-│     ├── harness.send(session)              → 发送 API                       │
-│     │   └── provider.streamCompletion()    → [跳转到 (9)]                    │
-│     ├── harness.resolveOutcome()           → 解析结果                        │
-│     │   └── 输出: ReplyPayload { text, usage }                              │
-│     └── harness.cleanup()                  → 清理资源                        │
+│     Harness 选择和适配:                                                       │
+│     ├── selectAgentHarnessDecision()        → 选择 Harness                   │
+│     │   ├── 检查 agentHarnessId 配置       → 显式指定?                       │
+│     │   ├── 检查 Plugin Harness 支持度     → supports(provider/model)        │
+│     │   └── 选择结果:                       │
+│     │       ├── "pi" (默认)                 → createPiAgentHarness()         │
+│     │       └── plugin harness              → 注册的插件 harness             │
+│     │                                                                        │
+│     ├── createPiAgentHarness()              → AgentHarness (V1 接口)         │
+│     │   └── { id: "pi", runAttempt: runEmbeddedAttempt }                     │
+│     │                                                                        │
+│     └── adaptAgentHarnessToV2(harness)      → AgentHarnessV2 (V2 包装)       │
+│         ├── prepare: async () → { lifecycleState: "prepared" }              │
+│         ├── start: async () → { lifecycleState: "started" }                 │
+│         ├── send: async () → harness.runAttempt()  ← V1.runAttempt          │
+│         ├── resolveOutcome: async () → applyClassification()               │
+│         └── cleanup: async () → {}                                           │
+│                                                                              │
+│     └── runAgentHarnessV2LifecycleAttempt() → [跳转到 (12)]                   │
 └─────────────────────────────────────────────────────────────────────────────┘
         │
         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  (9) bailian/src/provider.ts                                                 │
-│     streamCompletion({ model, messages, tools })                            │
-│     ├── callBailianApi()                   → HTTP POST                      │
-│     │   └── https://bailian.aliyuncs.com/v1/chat/completions               │
+│  (12) agents/harness/v2.ts:187                                                │
+│     runAgentHarnessV2LifecycleAttempt(harness, params)                       │
+│                                                                              │
+│     Lifecycle (V2 适配层，包装 V1 Harness):                                  │
+│     ├── harness.prepare(params)            → 标记 prepared 状态              │
+│     ├── harness.start(prepared)            → 标记 started 状态               │
+│     ├── harness.send(session)              → [核心] 调用 V1.runAttempt       │
+│     │   │                                                                    │
+│     │   │  V2.send() 内部:                                                   │
+│     │   │  harness.runAttempt(session.params)  ← 来自 V1 AgentHarness       │
+│     │   │                                                                    │
+│     │   └── PI Harness V1.runAttempt → runEmbeddedAttempt (~3700 行)        │
+│     │       ├── [阶段 A] 初始化: workspace/sandbox/skills/tools            │
+│     │       ├── [阶段 B] Session: SessionManager + PI Session               │
+│     │       ├── [阶段 C] Prompt: systemPrompt + history 处理                │
+│     │       ├── [阶段 D] API: streamFn 配置                                 │
+│     │       ├── [阶段 E] 执行: subscribeEmbeddedPiSession                   │
+│     │       │   └── streamFn → [跳转到 (13)]                                │
+│     │       └── [阶段 F] 结果: 构造返回 + 清理                               │
+│     ├── harness.resolveOutcome()           → 应用 result classification     │
+│     └── harness.cleanup()                  → 清理资源                        │
+│                                                                              │
+│     输出: EmbeddedRunAttemptResult { assistantTexts, toolMetas, usage }      │
+│                                                                              │
+│     关键: V2 lifecycle 是适配层，实际执行都在 V1.runAttempt/runEmbeddedAttempt│
+└─────────────────────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  (13) bailian/src/provider.ts                                                 │
+│     streamCompletion({ model, messages, tools })                             │
+│     ├── callBailianApi()                   → HTTP POST                       │
+│     │   └── https://bailian.aliyuncs.com/v1/chat/completions                │
 │     └── parseBailianStreamChunk()          → 解析流式响应                    │
 │         └── AsyncIterable<StreamChunk>                                      │
 │             ├── { text: "国内模型..." }                                      │
@@ -1104,7 +1190,7 @@ agents/harness/v2.ts → Provider API (百炼) → reply-dispatcher.ts → send.
         │  流式返回
         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  (10) feishu/src/reply-dispatcher.ts:131                                     │
+│  (14) feishu/src/reply-dispatcher.ts:131                                      │
 │     dispatcher.sendBlockReply() (流式)                                       │
 │     ├── streamingSession.updateCard()      → 更新飞书卡片                   │
 │     │   └── 实时显示生成内容                                                 │
@@ -1112,18 +1198,18 @@ agents/harness/v2.ts → Provider API (百炼) → reply-dispatcher.ts → send.
 │     dispatcher.sendFinalReply() (最终)                                       │
 │     ├── shouldUseCard()                    → 判断是否卡片                   │
 │     │   └── 条件: 代码块 | 表格                                              │
-│     └── sendMessageFeishu() | sendCardFeishu() → [跳转到 (11)]               │
+│     └── sendMessageFeishu() | sendCardFeishu() → [跳转到 (15)]               │
 └─────────────────────────────────────────────────────────────────────────────┘
         │
         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  (11) feishu/src/send.ts:549                                                 │
-│     sendMessageFeishu({ to, text, replyToMessageId })                       │
+│  (15) feishu/src/send.ts:549                                                  │
+│     sendMessageFeishu({ to, text, replyToMessageId })                        │
 │     ├── resolveFeishuSendTarget()          → 解析发送目标                   │
 │     ├── buildFeishuPostMessagePayload()    → 构建消息体                     │
-│     └── client.im.message.create()         → 飞书 API                      │
-│         └── POST /im/v1/messages?receive_id_type=open_id                   │
-│         └── 返回: { message_id: "om_xxx" }                                  │
+│     └── client.im.message.create()         → 飞书 API                       │
+│         └── POST /im/v1/messages?receive_id_type=open_id                    │
+│         └── 返回: { message_id: "om_xxx" }                                   │
 └─────────────────────────────────────────────────────────────────────────────┘
         │
         ▼
@@ -1133,7 +1219,7 @@ agents/harness/v2.ts → Provider API (百炼) → reply-dispatcher.ts → send.
 #### 5.2.2 工具调用分支
 
 ```
-(8) harness.send() → Provider API
+(12) harness.send() → Provider API
         │
         ▼  返回 toolCall
 │
@@ -1154,7 +1240,7 @@ agents/harness/v2.ts → Provider API (百炼) → reply-dispatcher.ts → send.
 │  │ ├── appendToolResultToHistory()    → 记录到 Session                │
 │  │ │                                                                   │
 │  │ └── 继续调用 Provider API           → 循环直到结束                   │
-│  │     └── streamCompletion() → (9)                                      │
+│  │     └── streamCompletion() → (13)                                      │
 │  └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1205,13 +1291,13 @@ agents/harness/v2.ts → Provider API (百炼) → reply-dispatcher.ts → send.
      stream: true
    }
         │
-        ▼ (9) Provider 返回
+        ▼ (13) Provider 返回
    StreamChunk {
      text: "国内模型和国外模型在多个维度上...",
      finishReason: "stop"
    }
         │
-        ▼ (8) resolveOutcome()
+        ▼ (12) resolveOutcome()
    ReplyPayload {
      text: "国内模型和国外模型在多个维度上存在可度量的差距...",
      model: "glm-5",
@@ -1219,9 +1305,9 @@ agents/harness/v2.ts → Provider API (百炼) → reply-dispatcher.ts → send.
      usage: { inputTokens: 49345, outputTokens: 10570 }
    }
         │
-        ▼ (10) shouldUseCard() → false (纯文本)
+        ▼ (14) shouldUseCard() → false (纯文本)
         │
-        ▼ (11) sendMessageFeishu()
+        ▼ (15) sendMessageFeishu()
    飞书 API Payload:
    {
      receive_id: "ou_cff0...",
@@ -1256,12 +1342,18 @@ channels/turn/kernel.ts:300 → runChannelTurn()
 dispatch-from-config.ts:334 → dispatchReplyFromConfig()
   └── get-reply.ts:173 → getReplyFromConfig()
       └── get-reply-run.ts:343 → runPreparedReply()
+          └── agent-runner.ts:888 → runReplyAgent()
+              └── agent-runner-execution.ts:871 → runAgentTurnWithFallback()
 
 【Agents 执行引擎层】
-agents/harness/v2.ts:187 → runAgentHarnessV2LifecycleAttempt()
-  ├── prepare → 构建 API Payload
-  ├── send → 调用 Provider
-  └── resolveOutcome → 解析结果
+pi-embedded-runner/run.ts:303 → runEmbeddedPiAgent()
+  ├── selectAgentHarness → 选择 Harness
+  └── runEmbeddedAttemptWithBackend → 执行 Harness
+      └── harness/selection.ts:153 → runAgentHarnessAttempt()
+          └── harness/v2.ts:187 → runAgentHarnessV2LifecycleAttempt()
+              ├── prepare → 构建 API Payload
+              ├── send → 调用 Provider
+              └── resolveOutcome → 解析结果
 
 【百炼 Provider 层】
 bailian/src/provider.ts → streamCompletion()
@@ -2038,7 +2130,8 @@ sequenceDiagram
     participant Turn as "turn/kernel.ts<br/>runChannelTurn()"
     participant Dispatch as "dispatch<br/>-from-config.ts"
     participant GetReply as "get-reply.ts"
-    participant RunReply as "get-reply<br/>-run.ts"
+    participant RunReply as "get-reply<br/>-run.ts<br/>+ agent-runner.ts"
+    participant PiEmbedded as "pi-embedded<br/>-runner/run.ts"
     participant Harness as "harness/v2.ts"
     participant Provider as "Provider<br/>百炼 GLM-5"
     participant Reply as "reply<br/>-dispatcher.ts"
@@ -2081,8 +2174,18 @@ sequenceDiagram
     GetReply->>GetReply: "initSessionState()"
     GetReply->>RunReply: "runPreparedReply()"
 
-    RunReply->>Harness: "selectAgentHarness()"
-    RunReply->>Harness: "runAgentHarnessAttempt()"
+    RunReply->>RunReply: "runReplyAgent()"
+    Note over RunReply: "agent-runner.ts"
+
+    RunReply->>RunReply: "runAgentTurnWithFallback()"
+    Note over RunReply: "agent-runner-execution.ts"
+
+    RunReply->>PiEmbedded: "runEmbeddedPiAgent()"
+    Note over PiEmbedded: "pi-embedded-runner/run.ts"
+
+    PiEmbedded->>PiEmbedded: "selectAgentHarness()"
+    PiEmbedded->>PiEmbedded: "runEmbeddedAttemptWithBackend()"
+    PiEmbedded->>Harness: "runAgentHarnessAttempt()"
 
     Harness->>Harness: "buildSystemPrompt()"
     Harness->>Harness: "buildToolDefinitions()"
@@ -2095,8 +2198,8 @@ sequenceDiagram
     end
 
     Provider-->>Harness: "完成"
-    Harness-->>RunReply: "replyPayload"
-
+    Harness-->>PiEmbedded: "replyPayload"
+    PiEmbedded-->>RunReply: "replyPayload"
     RunReply-->>Dispatch: "reply"
     Dispatch->>Reply: "sendFinalReply()"
 
