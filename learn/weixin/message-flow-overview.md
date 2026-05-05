@@ -1,18 +1,12 @@
 # 一条消息的奇幻旅程：从飞书到 AI 回复的 16 步之旅
 
-> 当你在飞书发送一条消息给 OpenClaw Bot，这条消息经历了什么？
->
-> 让我们跟随一条消息，探索它从发送到收到回复的完整旅程。
+> 基于 OpenClaw v2026.5.3 源码分析（2026-05-05）
 
----
-
-## 序章：3秒背后的故事
-
-你在飞书群里 @ 了 OpenClaw Bot，发送了 "帮我分析一下这段代码"。
+你在飞书群里 @ 了 OpenClaw Bot，发送了"帮我分析一下这段代码"。
 
 短短3秒后，一条流畅的 AI 回复出现在你的屏幕上。
 
-这3秒里，你的消息经历了一场跨越16个步骤的奇幻旅程。
+这3秒里，你的消息经历了一场跨越16个步骤的奇幻旅程。让我们跟随它，探索从发送到回复的完整路径。
 
 ---
 
@@ -141,13 +135,13 @@ getReplyFromConfig
         │   └── sessionKey → agentId
         │   └── 比如："agent:main:feishu:group:oc_xxx" → "main"
         │
-        ├── 【选择模型】决定用哪个 AI
+        ├── 【模型路由】层层解析最终调用哪个模型
         │   │
-        │   ├── 默认模型配置
-        │   ├── 渠道覆盖（飞书专用模型？）
-        │   ├── 存储覆盖（用户上次用的模型）
+        │   ├── 第一层：Agent 默认配置
+        │   ├── 第二层：渠道覆盖（飞书专用模型？）
+        │   ├── 第三层：存储覆盖（用户上次用的模型）
         │   │
-        │   └── 结果："claude-opus-4-7" 或 "gpt-5.5"
+        │   └── 最终结果："claude-opus-4-7" 或 "gpt-5.5"
         │
         ├── 【准备战场】创建工作目录
         │   │
@@ -281,19 +275,19 @@ runReplyAgent
         │   │
         │   └── 决策依据：队列设置、当前状态
         │
-        ├── 【预压缩】对话太长了？
+        ├── 【预压缩】对话历史是否超过模型上限？
         │   │
         │   ├── 检查 context window 使用率
-        │   │   ├── >80%？需要压缩
+        │   │   ├── >80%？需要预压缩
         │   │   │   │
         │   │   │   └── runPreflightCompaction
-        │   │   │       ├── 保留关键信息
-        │   │   │       ├── 删除冗余内容
-        │   │   │       └── 写入压缩后的历史
+        │   │   │       ├── 保留关键决策和结果
+        │   │   │       ├── 删除冗余对话细节
+        │   │   │       └── 写入压缩后的 transcript
         │   │   │
         │   │   └── <80%？跳过压缩
         │   │
-        │   └── 避免"爆内存"
+        │   └── 目的：确保对话长度不超出模型的 context window 限制
         │
         ├── 【内存刷新】长期记忆
         │   │
@@ -470,17 +464,62 @@ runEmbeddedPiAgent
         │   │   ├── resolveRunWorkspaceDir
         │   │   └── 如果用户指定的目录不存在？用 fallback
         │   │
-        │   ├── Runtime Plugins 加载
-        │   │   └── ensureRuntimePluginsLoaded
-        │   │   └── 加载 agent 可用的运行时插件
+        │   ├── Runtime Plugins 确认
+        │   │   │
+        │   │   ├── ensureRuntimePluginsLoaded
+        │   │   │   │
+        │   │   ├── 检查：插件是否已在 Gateway 启动时加载？
+        │   │   │   ├── 是 → 返回现有注册表（缓存命中）
+        │   │   │   └── 否 → 补加载（罕见情况）
+        │   │   │
+        │   │   ├── Gateway 启动时已加载 startup plugins：
+        │   │   │   ├── 飞书渠道插件（监听 WebSocket）
+        │   │   │   ├── Provider 插件（调用 AI API）
+        │   │   │   └── 其他配置的启动插件
+        │   │   │
+        │   │   ├── 为什么再检查一次？
+        │   │   │   ├── 某些场景下插件延迟加载
+        │   │   │   └── 确保后续步骤能正常调用插件能力
+        │   │   │
+        │   │   └── 结果：PluginRegistry 就绪
         │   │
         │   ├── Provider/Model 解析
         │   │   ├── provider: "claude" / "openai" / ...
         │   │   └── modelId: "claude-opus-4-7" / "gpt-5.5" / ...
         │   │
         │   ├── Hook Runner 获取
-        │   │   └── getGlobalHookRunner()
-        │   │   └── 插件 hook 可能在执行中触发
+        │   │   │
+        │   │   ├── getGlobalHookRunner()
+        │   │   │   │
+        │   │   ├── 插件可以注册 hook，在特定时机介入：
+        │   │   │   │
+        │   │   ├── 消息流程 hook：
+        │   │   │   ├── message_received：收到消息时（日志、统计）
+        │   │   │   ├── before_dispatch：分发前（敏感词过滤）
+        │   │   │   ├── reply_dispatch：回复分发（多渠道发送）
+        │   │   │   ├── message_sending：发送前（格式转换）
+        │   │   │   └── message_sent：发送后（状态记录）
+        │   │   │   │
+        │   │   ├── Agent 执行 hook：
+        │   │   │   ├── before_agent_start：启动前（注入额外 prompt）
+        │   │   │   ├── before_model_resolve：模型选择前（强制指定模型）
+        │   │   │   ├── before_prompt_build：Prompt 构建前（修改上下文）
+        │   │   │   ├── before_tool_call：工具调用前（安全检查）
+        │   │   │   ├── after_tool_call：工具调用后（结果处理）
+        │   │   │   ├── before_compaction：压缩前（保留关键信息）
+        │   │   │   └── agent_end：Agent 结束（清理资源）
+        │   │   │   │
+        │   │   ├── 会话生命周期 hook：
+        │   │   │   ├── session_start：会话开始（初始化）
+        │   │   │   └── session_end：会话结束（归档）
+        │   │   │   │
+        │   │   └── Gateway 生命周期 hook：
+        │   │   │   ├── gateway_start：Gateway 启动
+        │   │   │   └── gateway_stop：Gateway 停止
+        │   │   │
+        │   │   └── 示例：飞书插件注册 message_sent hook
+        │   │   └── 每次发送消息后，hook 被触发
+        │   │   └── 插件可以记录发送状态、更新统计
         │   │
         │   └── 结果：执行环境就绪
         │
@@ -530,36 +569,61 @@ runAgentHarnessAttempt
         │   └── 【V2 适配】统一接口
         │   │   │
         │   │   ├── adaptAgentHarnessToV2(harness)
+        │   │   │
+        │   │   ├── ★ 为什么有 V1 和 V2？
         │   │   │   │
-        │   │   ├── 为什么需要适配？
-        │   │   │   ├── V1 Harness（旧接口）：
-        │   │   │   │   └── 只有 runAttempt() 方法
-        │   │   │   │   └── 一次性执行
+        │   │   ├── V1 接口（原始设计）：
+        │   │   │   ├── 只有一个 runAttempt() 方法
+        │   │   │   ├── 一次性执行，无法区分阶段
+        │   │   │   └── Codex Harness 就是 V1 实现
+        │   │   │
+        │   │   ├── V2 接口（新设计）：
+        │   │   │   ├── prepare() → 准备资源
+        │   │   │   ├── start() → 初始化 Session
+        │   │   │   ├── send() → 执行（核心）
+        │   │   │   ├── resolveOutcome() → 结果分类
+        │   │   │   ├── cleanup() → 清理资源
+        │   │   │   ├── resume? → 中断恢复（可选）
+        │   │   │   └── handleToolCall? → 工具处理（可选）
+        │   │   │
+        │   │   ├── ★ 设计动机（来自 upstream commit #71722）：
+        │   │   │   ├── 统一 RuntimePlan：PI + Plugin Harness 共享策略
+        │   │   │   ├── tools.normalize/logDiagnostics：工具策略共享
+        │   │   │   ├── transcript.resolvePolicy：transcript 处理共享
+        │   │   │   ├── outcome.classifyRunResult：fallback 分类统一
+        │   │   │   ├── resume：支持中断恢复
+        │   │   │   └── handleToolCall：自定义工具处理
         │   │   │   │
-        │   │   ├── V2 Harness（新接口）：
-        │   │   │   │   ├── prepare() → 准备
-        │   │   │   │   ├── start() → 启动
-        │   │   │   │   ├── send() → 执行（核心）
-        │   │   │   │   ├── resolveOutcome() → 结果
-        │   │   │   │   └── cleanup() → 清理
-        │   │   │   │   └── 四阶段生命周期
+        │   │   └── 核心目的：让 Codex 等 Plugin Harness 和 PI 行为一致
+        │   │   │
+        │   │   ├── ★ 适配层的作用：
         │   │   │   │
-        │   │   └── 适配 = 包装 V1 成 V2
-        │   │   └── V2.send() 内部调用 V1.runAttempt()
+        │   │   ├── 所有 Harness 最终以 V2 接口被调用
+        │   │   │   ├── V1 Harness 包装成 V2：
+        │   │   │   │   ├── prepare/start → 仅标记状态
+        │   │   │   │   ├── send → 调用 V1.runAttempt()
+        │   │   │   │   ├── resolveOutcome → classifyRunResult
+        │   │   │   │   └── cleanup → 清理资源
+        │   │   │   │
+        │   │   ├── 原生 V2 Harness：
+        │   │   │   └── 各阶段有实际逻辑
+        │   │   │   └── 更细的生命周期控制
+        │   │   │
+        │   │   └── 统一的调用方式，兼容新旧实现
         │   │
-        │   └── 输出：AgentHarnessV2（统一的四阶段接口）
+        │   └── 输出：AgentHarnessV2（统一的五阶段接口）
         │
         └── 传给第12站
 ```
 
-**一句话**：选择合适的执行引擎，并适配成统一的四阶段接口。
+**一句话**：选择合适的执行引擎，并适配成统一的五阶段接口。
 
 ### 第12站：V2 生命周期执行
 
 ```
 runHarnessV2LifecycleAttempt
         │
-        │  执行 Harness 的四阶段生命周期
+        │  执行 Harness 的五阶段生命周期
         │  V2 是统一的执行框架
         │
         ├── 【阶段1: prepare】准备资源
@@ -648,13 +712,16 @@ runHarnessV2LifecycleAttempt
 | send           | ★ 调用 runAttempt     | 自定义执行            |
 | resolveOutcome | classifyRunResult     | 自定义分类            |
 | cleanup        | 清理资源              | 自定义清理            |
+| resume         | 不支持                | 可选，中断恢复        |
+| handleToolCall | 不支持                | 可选，工具处理        |
 
-**一句话**：执行四阶段生命周期，send() 是真正的核心执行。
+**一句话**：执行五阶段生命周期，send() 是真正的核心执行。
 
-### 第13站：核心执行站（PI Agent 入口）
+### 第13站：核心执行站（OpenClaw 执行封装）
 
 > **重要**：从这一站开始，进入 @mariozechner/pi-coding-agent 的世界。
-> runEmbeddedAttempt 是 OpenClaw 对 PI Agent 的封装，核心对话循环由 PI Agent 管理。
+> runEmbeddedAttempt 是 OpenClaw 对 PI Agent 执行的封装层，
+> 真正的 PI Agent 对话入口是 `activeSession.prompt()`。
 
 ```
 runEmbeddedAttempt（~3700行核心代码）
@@ -943,13 +1010,3 @@ sendMessageFeishu
 3秒钟，16站，4章旅程。
 
 这就是 OpenClaw 一条消息的奇幻之旅。
-
----
-
-> 本文基于 OpenClaw 源码分析整理
->
-> 详细技术文档见：[learn/message-flow/](../message-flow/)
-
----
-
-**互动话题**：你认为这16步中，哪一步最关键？欢迎评论区讨论！
