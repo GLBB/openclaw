@@ -312,6 +312,7 @@ PI Agent 输出 → ReplyDispatcher 输入
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  PI Agent Session 输出                                                       │
+│  文件: agents/pi-embedded-runner/run/attempt.ts (~3700行)                   │
 │                                                                              │
 │  subscribeEmbeddedPiSession 返回:                                            │
 │  ├── assistantTexts: string[]        → 文本回复片段                         │
@@ -323,6 +324,7 @@ PI Agent 输出 → ReplyDispatcher 输入
         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  (13) runEmbeddedAttempt 结果处理                                            │
+│  文件: agents/pi-embedded-runner/run/attempt.ts (~3700行)                   │
 │                                                                              │
 │  ├── classifyRunResult()              → 结果分类                             │
 │  │   └── "ok" | "error" | "aborted" | "timeout"                              │
@@ -337,13 +339,20 @@ PI Agent 输出 → ReplyDispatcher 输入
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  (12 → 11 → 10 → 9) 结果逐层返回                                             │
 │                                                                              │
-│  runHarnessV2LifecycleAttempt.resolveOutcome()                               │
+│  (12) runHarnessV2LifecycleAttempt.resolveOutcome()                          │
+│      文件: agents/harness/v2.ts (~260行)                                     │
 │      └── applyClassification() → 标记最终状态                               │
 │                                                                              │
-│  runEmbeddedPiAgent()                                                        │
+│  (11) runAgentHarnessAttempt                                                 │
+│      文件: agents/harness/selection.ts (~400行)                              │
+│      └── 返回 Harness 尝试结果                                               │
+│                                                                              │
+│  (10) runEmbeddedPiAgent()                                                   │
+│      文件: agents/pi-embedded-runner/run.ts (~700行)                         │
 │      └── 返回 PiAgentRunResult                                               │
 │                                                                              │
-│  runAgentTurnWithFallback()                                                  │
+│  (9) runAgentTurnWithFallback()                                              │
+│      文件: auto-reply/reply/agent-runner-execution.ts (~2078行)              │
 │      └── 处理 fallback 结果                                                  │
 │      └── 返回 AgentTurnResult                                                │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -351,6 +360,7 @@ PI Agent 输出 → ReplyDispatcher 输入
         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  (8) runReplyAgent 结果构造                                                   │
+│  文件: auto-reply/reply/agent-runner.ts (~1869行)                            │
 │                                                                              │
 │  ├── constructReplyPayload()           → 构建 ReplyPayload                  │
 │  │   ├── assistantTexts.join()        → 合并文本                            │
@@ -373,13 +383,16 @@ PI Agent 输出 → ReplyDispatcher 输入
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  (5 → 6 → 7) ReplyPayload 返回                                               │
 │                                                                              │
-│  runPreparedReply()                                                          │
+│  (7) runPreparedReply()                                                      │
+│      文件: auto-reply/reply/get-reply-run.ts (~1059行)                       │
 │      └── 返回 ReplyPayload                                                   │
 │                                                                              │
-│  getReplyFromConfig()                                                        │
+│  (6) getReplyFromConfig()                                                    │
+│      文件: auto-reply/reply/get-reply.ts (~680行)                            │
 │      └── 返回 ReplyPayload                                                   │
 │                                                                              │
-│  dispatchReplyFromConfig()                                                   │
+│  (5) dispatchReplyFromConfig()                                               │
+│      文件: auto-reply/reply/dispatch-from-config.ts (~1549行)                │
 │      └── dispatcher.sendFinalReply(payload) → [步骤 15]                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```

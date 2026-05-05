@@ -1,0 +1,908 @@
+<section style="margin:0 auto;max-width:690px;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;color:#1f2937;font-size:16px;line-height:1.9;">
+<blockquote style="margin:1.1em 0;padding:0.82em 1.02em;border-left:3px solid #f59e0b;background:#fff8e6;color:#5f4b20;line-height:1.85;border-radius:6px;">
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">基于 OpenClaw v2026.5.3 源码分析（2026-05-05）</p>
+</blockquote>
+<p style="margin:1em 0;padding:0.88em 0.96em;background:#fff7e6;border:1px solid #ffe1a6;border-radius:8px;line-height:1.9;font-size:16px;color:#2b2f38;text-indent:0;box-shadow:0 2px 10px rgba(251,146,60,0.12);">你在飞书群里 @ 了 OpenClaw Bot，发送了"帮我分析一下这段代码"。</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">短短3秒后，一条流畅的 AI 回复出现在你的屏幕上。</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">这3秒里，你的消息经历了一场跨越16个步骤的奇幻旅程。让我们跟随它，探索从发送到回复的完整路径。</p>
+<hr/>
+<h2 style="margin:1.45em 0 0.72em;padding:0.46em 0.72em;font-size:1.2em;line-height:1.45;color:#7a1f1f;font-weight:800;background:#fff2f2;border-left:4px solid #ef4444;border-radius:4px;">第一章：穿越防火墙（步骤 1-4）</h2>
+<h3>第1站：交通枢纽</h3>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">飞书服务器推送消息到 OpenClaw，有两种方式：</p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">方式</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">WebSocket</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">专线直达，实时推送</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">内网首选</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Webhook</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">HTTP回调，邮递员模式</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">公网简单</td>
+</tr>
+</tbody>
+</table>
+<h3>第2站：安检关卡</h3>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">消息进入后遇到三道安检：</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">(1) <strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">防抖门</strong> - 3秒窗口内合并快速输入</p>
+<blockquote style="margin:1.1em 0;padding:0.82em 1.02em;border-left:3px solid #f59e0b;background:#fff8e6;color:#5f4b20;line-height:1.85;border-radius:6px;">
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">"帮我" → "帮我分析" → "帮我分析代码" → 合并成一条</p>
+</blockquote>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">(2) <strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">去重门</strong> - 检查 message_id，丢弃重复推送</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">(3) <strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">排队门</strong> - 同一群的消息按顺序处理</p>
+<h3>第3站：身份验证</h3>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">消息类型</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">检查项</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">不满足时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">群聊</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">群白名单、发送者白名单、是否@Bot</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">发送提示消息，旅程结束</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">私聊</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">用户已配对、用户白名单</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">发送提示消息，旅程结束</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">权限不足 → 发送提示消息，旅程结束</p>
+<h3>第4站：任务编排</h3>
+<section style="margin:10px 0;padding:10px;background:#f6f8fa;border-radius:4px;border:1px solid #e1e4e8;font-family:Menlo,Monaco,'Courier New',monospace;font-size:14px;color:#24292e;line-height:1.6;"><p style="margin:0;padding:0;font-family:inherit;white-space:pre-wrap;"><span>runChannelTurn</span><br/><span>  ├── 解析 Agent 路由（哪个 Agent 实例？）</span><br/><span>  ├── 解析 Session 绑定（哪个对话？）</span><br/><span>  ├── 构建消息上下文</span><br/><span>  └── 启动回复生成流程</span></p></section>
+<hr/>
+<h2 style="margin:1.45em 0 0.72em;padding:0.46em 0.72em;font-size:1.2em;line-height:1.45;color:#7a1f1f;font-weight:800;background:#fff2f2;border-left:4px solid #ef4444;border-radius:4px;">第二章：四层接力（步骤 5-8）</h2>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">消息进入核心区，开始四层接力赛。</p>
+<h3>第一棒：分发协调员</h3>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">dispatchReplyFromConfig</strong> 做三件事：</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">(1) <strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">紧急出口</strong> - <code>/stop</code>、<code>/help</code> 等命令直接返回预设回复</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">(2) <strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">插件插队</strong> - 让插件介入消息流程</p>
+<blockquote style="margin:1.1em 0;padding:0.82em 1.02em;border-left:3px solid #f59e0b;background:#fff8e6;color:#5f4b20;line-height:1.85;border-radius:6px;">
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><code>message_received</code> - 偷看消息（日志、统计）<br/>
+<code>before_dispatch</code> - 拦截消息（敏感词过滤）<br/>
+<code>reply_dispatch</code> - 修改分发（多渠道发送）</p>
+</blockquote>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">(3) <strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">工具授权</strong> - 决定 AI 能用什么工具</p>
+<h3>第二棒：回复准备员</h3>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">getReplyFromConfig</strong> 准备执行环境：</p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">任务</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">定位角色</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">从 sessionKey 解析出 agentId，如 "agent:main:feishu:group:oc_xxx" → "main"</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">模型路由</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">三层解析：Agent默认配置 → 渠道覆盖 → 存储覆盖，最终确定具体模型</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">准备战场</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">创建 workspaceDir 目录，写入 bootstrap 文件注入项目知识</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">理解内容</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">图片→图片理解，链接→链接理解，提取关键信息加入对话</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">解析命令</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;"><code>/think</code> 启用深度思考，<code>/model</code> 切换模型，<code>/reset</code> 重置会话</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">初始化会话</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">读取 session 文件，加载历史消息，构建 SessionEntry</td>
+</tr>
+</tbody>
+</table>
+<h3>第三棒：执行准备员</h3>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">runPreparedReply</strong> 设置执行参数：</p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">任务</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">场合设定</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">群聊："低调参与，被@才回复"；私聊："可以更详细"。组装成 extraSystemPrompt</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">消息正文</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">提取用户说的核心内容，处理引用消息（用户回复了谁），生成 prefixedCommandBody</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">队列状态</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">检查是否有其他消息正在处理，决定排队策略：run直接执行、steer注入对话、followup完成后继续</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Thinking级别</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">用户 <code>/think high</code> 深度思考，模型不支持时自动降级</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">静默规则</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">AI能否不发消息？（见下表）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">技能快照</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">用户配置了 skills 时加载技能列表，传给 AI 作为可用能力</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">媒体附件</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">图片、音频暂存到 sandbox，生成路径引用，AI 可以"看到"这些文件</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">静默规则说明：</strong></p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">通过 <code>silentToken</code>（如 "NO_REPLY"）实现：AI回复这个标记表示不需要发送消息。</p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">场景</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">policy</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">rewrite</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">AI行为</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">用户看到</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">群聊</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">allow</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">false</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">可回复 <code>NO_REPLY</code> 不发消息</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">无消息，避免刷屏</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">私聊</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">disallow</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">true</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">不能用 <code>NO_REPLY</code>，必须回复</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">简短文本："Nothing to add right now."</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">内部</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">allow</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">false</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">可回复 <code>NO_REPLY</code></td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">无消息</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">典型使用场景：</strong><br/>
+- 群聊中AI只是监听消息，不需要回复 → 回复 <code>NO_REPLY</code> → 不发送<br/>
+- AI执行工具后没有需要告诉用户的内容 → 回复 <code>NO_REPLY</code> → 不发送<br/>
+- 私聊中AI没有实质内容要回复 → 发简短文本替代</p>
+<h3>第四棒：Agent 编排员</h3>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">runReplyAgent</strong> 核心编排：</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">(1) Steering检查</strong> - 能否"搭便车"？</p>
+<blockquote style="margin:1.1em 0;padding:0.82em 1.02em;border-left:3px solid #f59e0b;background:#fff8e6;color:#5f4b20;line-height:1.85;border-radius:6px;">
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">AI正在回复+流式输出中 → 新消息注入现有对话<br/>
+用户追加提问，AI继续回复（无需新建对话）</p>
+</blockquote>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">(2) 队列决策</strong> - 怎么处理这条消息？</p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">决策</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">含义</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">drop</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">丢弃</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">已有太多排队消息</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">enqueue-followup</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">排队等待</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">完成当前后再处理</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">run-now</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">立即执行</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">当前无其他任务</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">wait</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">等待当前完成</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">正在执行其他任务</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">(3) 预压缩</strong> - context window &gt;80%？需要压缩</p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">操作</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">runPreflightCompaction</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">执行预压缩</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">保留</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">关键决策和结果</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">删除</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">冗余对话细节</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">目的</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">确保对话不超出模型限制</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">(4) 内存刷新</strong> - 长期记忆需要保存？</p>
+<blockquote style="margin:1.1em 0;padding:0.82em 1.02em;border-left:3px solid #f59e0b;background:#fff8e6;color:#5f4b20;line-height:1.85;border-radius:6px;">
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">runMemoryFlushIfNeeded → 写入 MEMORY.md</p>
+</blockquote>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">(5) 注册操作</strong> - 回复任务生命周期管理</p>
+<blockquote style="margin:1.1em 0;padding:0.82em 1.02em;border-left:3px solid #f59e0b;background:#fff8e6;color:#5f4b20;line-height:1.85;border-radius:6px;">
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">创建 ReplyOperation，跟踪一次回复生成任务的状态<br/>
+状态流转：queued → preflight_compacting → memory_flushing → running → completed/failed/aborted<br/>
+提供 abortSignal 支持取消，其他组件可监控执行进度</p>
+</blockquote>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">(6) 核心执行</strong> - runAgentTurnWithFallback → 进入执行层</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">(7) 结果处理</strong> - 组装回复</p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">操作</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">buildReplyPayloads</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">构建回复payload</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">合并文本片段</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">拼接AI生成的各段文本</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">添加usage统计</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">token使用量等</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">添加model信息</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">实际使用的模型</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">输出</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">ReplyPayload</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">关键决策：</strong> 这一棒决定"压缩策略"、"模型fallback"、"生命周期管理"</p>
+<hr/>
+<h2 style="margin:1.45em 0 0.72em;padding:0.46em 0.72em;font-size:1.2em;line-height:1.45;color:#7a1f1f;font-weight:800;background:#fff2f2;border-left:4px solid #ef4444;border-radius:4px;">第三章：核心执行（步骤 9-14）</h2>
+<h3>第9站：模型降级站</h3>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">runAgentTurnWithFallback</strong> - 模型 Fallback 机制</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">候选模型来源：</strong></p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">来源</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">主模型</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">用户请求的模型，如 claude/claude-opus-4-7</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">第1备用</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">openai/gpt-5.5，主模型失败时优先尝试</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">第2备用</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">anthropic/claude-sonnet-4-6，第1备用也失败时尝试</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">第3备用</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">openai/gpt-4o-mini，本地小模型，最后兜底</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">为什么要有备用？</strong><br/>
+- rate_limit（限流）<br/>
+- overload（过载）<br/>
+- billing（账单问题）<br/>
+- timeout（超时）</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">Auth Profile 检查：</strong><br/>
+- 有认证配置？<br/>
+- 所有 profile 都在 cooldown？<br/>
+- cooldown = 刚失败过，需要等待</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">错误类型：</strong></p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">错误</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">rate_limit</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">API 限流，短时间内调用次数超限</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">overloaded</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">服务过载，模型服务高峰期</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">billing</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">账单问题，账户欠费或额度用尽</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">timeout</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">请求超时，网络问题或模型处理慢</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">context_overflow</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">对话太长，context window 超限</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">auth_error</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">认证失败，API Key 过期或配置错误</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">unknown</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">其他错误，未预期的异常情况</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">特殊处理：</strong><br/>
+- AbortError → 直接抛出（用户取消）<br/>
+- FailoverError → 继续下一个候选</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">FallbackSummaryError：</strong> 包含所有尝试详情 + 最短 cooldown 过期时间</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">用户看到的错误示例：</strong></p>
+<blockquote style="margin:1.1em 0;padding:0.82em 1.02em;border-left:3px solid #f59e0b;background:#fff8e6;color:#5f4b20;line-height:1.85;border-radius:6px;">
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">"Claude rate-limited, retry in 30s"<br/>
+"GPT overloaded, retry in 2m"<br/>
+"所有模型暂时不可用，请稍后重试"</p>
+</blockquote>
+<h3>第10站：Harness 选择站</h3>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">runEmbeddedPiAgent</strong> - 选择执行引擎</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">两种 Harness：</strong></p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">类型</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">priority</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">PI Harness</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">0</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">OpenClaw 内置引擎，支持所有 provider，runAttempt → runEmbeddedAttempt</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Plugin Harness</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">100+</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">自定义引擎，如 Codex App Server，只处理特定 provider，有独立实现</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">执行环境准备：</strong></p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">任务</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Session Key</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">确保下游组件都能拿到 sessionKey，用于识别对话</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Lane队列</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">globalLane 全局任务队列 + sessionLane 会话任务队列，避免并发冲突</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Timeout</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">laneTaskTimeoutMs 超时限制，防止任务无限等待</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Workspace</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">resolveRunWorkspaceDir 解析工作目录，不存在时用 fallback</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Runtime Plugins</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">ensureRuntimePluginsLoaded 确保插件在 Gateway 启动时已加载，未加载则补加载</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Hook Runner</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">getGlobalHookRunner() 获取全局 Hook 执行器，插件可在特定时机介入</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">Hook 列表（插件可在特定时机介入）：</strong></p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">类别</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">Hook</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">消息流程</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">message_received</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">收到消息时（日志、统计）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">消息流程</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">before_dispatch</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">分发前（敏感词过滤）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">消息流程</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">reply_dispatch</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">回复分发（多渠道发送）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">消息流程</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">message_sending</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">发送前（格式转换）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">消息流程</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">message_sent</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">发送后（状态记录）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Agent执行</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">before_agent_start</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">启动前（注入额外 prompt）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Agent执行</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">before_model_resolve</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">模型选择前（强制指定模型）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Agent执行</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">before_prompt_build</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Prompt构建前（修改上下文）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Agent执行</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">before_tool_call</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">工具调用前（安全检查）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Agent执行</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">after_tool_call</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">工具调用后（结果处理）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Agent执行</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">before_compaction</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">压缩前（保留关键信息）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Agent执行</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">agent_end</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Agent结束（清理资源）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">会话生命周期</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">session_start</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">会话开始（初始化）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">会话生命周期</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">session_end</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">会话结束（归档）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Gateway生命周期</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">gateway_start</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Gateway启动</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Gateway生命周期</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">gateway_stop</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Gateway停止</td>
+</tr>
+</tbody>
+</table>
+<h3>第11站：Harness 选择与适配</h3>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">runAgentHarnessAttempt</strong> - V2 适配</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">选择逻辑：</strong><br/>
+- pinned：用户指定<br/>
+- forced_pi：配置强制 PI<br/>
+- forced_plugin：配置强制插件<br/>
+- auto_plugin：自动匹配<br/>
+- auto_pi：无匹配用 PI</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">V1 vs V2 接口对比：</strong></p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">阶段</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">V1</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">V2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">prepare</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">不支持</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">准备资源</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">start</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">不支持</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">初始化 Session</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">send</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">runAttempt()</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">核心执行</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">resolveOutcome</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">不支持</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">结果分类</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">cleanup</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">不支持</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">清理资源</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">resume</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">不支持</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">中断恢复（可选）</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">设计动机</strong>（来自 upstream commit #71722）：</p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">目的</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">统一 RuntimePlan</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">PI + Plugin Harness 共享策略</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">tools.normalize/logDiagnostics</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">工具策略共享</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">transcript.resolvePolicy</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">transcript 处理共享</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">outcome.classifyRunResult</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">fallback 分类统一</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">resume</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">支持中断恢复</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">handleToolCall</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">自定义工具处理</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">核心目的：让 Codex 等 Plugin Harness 和 PI 行为一致</p>
+<h3>第12站：V2 生命周期执行</h3>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">runHarnessV2LifecycleAttempt</strong> - 五阶段执行</p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">阶段</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">PI Harness</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">原生 V2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">prepare</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">仅标记状态</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">构建 Prompt/Tools</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">start</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">仅标记状态</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">初始化 Session</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">send</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">★调用 runAttempt</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">自定义执行</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">resolveOutcome</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">classifyRunResult</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">自定义分类</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">cleanup</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">清理资源</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">自定义清理</td>
+</tr>
+</tbody>
+</table>
+<h3>第13站：核心执行站</h3>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">runEmbeddedAttempt</strong> (~3700行核心代码)</p>
+<blockquote style="margin:1.1em 0;padding:0.82em 1.02em;border-left:3px solid #f59e0b;background:#fff8e6;color:#5f4b20;line-height:1.85;border-radius:6px;">
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">从这里开始，进入 @mariozechner/pi-coding-agent 的世界</p>
+</blockquote>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">执行阶段：</strong></p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">步骤</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">初始化 workspace、sandbox、skills</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">设置工作目录、安全沙箱、加载技能配置</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">工具准备 createOpenClawCodingTools + MCP + LSP</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">构建 OpenClaw 工具集、MCP 外部服务工具、LSP 代码补全工具</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Session创建 SessionManager.fromFile + createAgentSession</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">加载 session 文件历史对话，创建 AgentSession 对象管理对话循环</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Prompt构建 buildEmbeddedSystemPrompt + Bootstrap</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">收集运行时信息，组装完整 System Prompt（几千字符）</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">事件注册 subscribeEmbeddedPiSession</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">注册 PI Agent 事件处理器：message_start/update/end、tool_execution 等</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">streamFn Provider.streamCompletion</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">注册 LLM 调用函数，PI Agent 内部会调用</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">启动循环 activeSession.prompt()</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">启动 PI Agent 对话循环，真正开始执行</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">关键概念：</strong></p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">概念</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Bootstrap Files</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">项目上下文注入：BOOTSTRAP.md、MEMORY.md、SOUL.md、USER.md 等，有三种模式（none/limited/full），受字符限制，注入到 systemPrompt</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Cache Boundary</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">缓存优化，Prompt分段以利用模型缓存</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">transformProviderSystemPrompt</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Provider特定的Prompt转换：让插件自定义systemPrompt格式，如GPT-5需要特殊的prompt overlay</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">OpenClaw vs PI Agent 职责：</strong></p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">职责</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">OpenClaw</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">PI Agent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">工具创建</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">createOpenClawCodingTools</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">接收工具列表</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Session创建</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">调用 createAgentSession</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">管理 Session</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">System Prompt</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">buildEmbeddedSystemPrompt</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">接收 Prompt</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">事件处理</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">subscribeEmbeddedPiSession</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">发送事件</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">streamFn</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Provider.streamCompletion</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">内部调用</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">对话循环</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">prompt() 启动</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">while 循环管理</td>
+</tr>
+</tbody>
+</table>
+<h3>第14站：PI Agent 对话循环</h3>
+<section style="margin:10px 0;padding:10px;background:#f6f8fa;border-radius:4px;border:1px solid #e1e4e8;font-family:Menlo,Monaco,'Courier New',monospace;font-size:14px;color:#24292e;line-height:1.6;"><p style="margin:0;padding:0;font-family:inherit;white-space:pre-wrap;"><span>while (!finished) {</span><br/><span>  调用 streamFn() → Provider API</span><br/><span></span><br/><span>  收到 text？ → 立即发送 Block Reply</span><br/><span>  收到 toolCall？ → executeToolCall() → 再次调用 streamFn()</span><br/><span>  收到 finishReason？ → 结束循环</span><br/><span>}</span></p></section>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">流式 vs 阻塞：</strong></p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">环节</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">类型</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">用户感知</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">文本输出</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">流式</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">"打字中"</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">工具执行</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">阻塞</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">"暂停"</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">再次调用LLM</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">流式</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">"继续"</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">最终回复</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">一次性</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">完整卡片</td>
+</tr>
+</tbody>
+</table>
+<hr/>
+<h2 style="margin:1.45em 0 0.72em;padding:0.46em 0.72em;font-size:1.2em;line-height:1.45;color:#7a1f1f;font-weight:800;background:#fff2f2;border-left:4px solid #ef4444;border-radius:4px;">第四章：回复归途（步骤 15-16）</h2>
+<h3>第15站：回复分发器</h3>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">ReplyDispatcher</strong> 分发结果：</p>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">类型</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">说明</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">飞书显示</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Block Reply</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">流式更新飞书卡片，实时显示生成过程</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">用户看到"正在打字..."</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Tool Result</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">工具执行结果，如 web_search 返回内容</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">飞书不显示，其他渠道可能显示</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Final Reply</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">最终回复，判断格式后发送</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">有代码块/表格→交互式卡片，普通文本→富文本消息</td>
+</tr>
+</tbody>
+</table>
+<h3>第16站：飞书送达</h3>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">sendMessageFeishu</strong> 发送消息：<br/>
+- 解析目标（chat_id / open_id）<br/>
+- 构建飞书消息格式<br/>
+- POST /im/v1/messages<br/>
+- 返回 message_id → 推送给用户</p>
+<hr/>
+<h2 style="margin:1.45em 0 0.72em;padding:0.46em 0.72em;font-size:1.2em;line-height:1.45;color:#7a1f1f;font-weight:800;background:#fff2f2;border-left:4px solid #ef4444;border-radius:4px;">终章：完整旅程图</h2>
+<section style="margin:10px 0;padding:10px;background:#f6f8fa;border-radius:4px;border:1px solid #e1e4e8;font-family:Menlo,Monaco,'Courier New',monospace;font-size:14px;color:#24292e;line-height:1.6;"><p style="margin:0;padding:0;font-family:inherit;white-space:pre-wrap;"><span>飞书用户发送消息</span><br/><span>        │</span><br/><span>        ▼ 第一章</span><br/><span>┌────────────────────┐</span><br/><span>│ 1. 接收            │</span><br/><span>│ 2. 防抖→去重→排队  │</span><br/><span>│ 3. 权限检查        │</span><br/><span>│ 4. 任务编排        │</span><br/><span>└────────────────────┘</span><br/><span>        │</span><br/><span>        ▼ 第二章</span><br/><span>┌────────────────────┐</span><br/><span>│ 5. 分发协调        │</span><br/><span>│ 6. 回复准备        │</span><br/><span>│ 7. 执行准备        │</span><br/><span>│ 8. Agent编排       │</span><br/><span>└────────────────────┘</span><br/><span>        │</span><br/><span>        ▼ 第三章</span><br/><span>┌────────────────────┐</span><br/><span>│ 9. 模型Fallback    │</span><br/><span>│ 10. Harness选择    │</span><br/><span>│ 11-12. V2 Lifecycle│</span><br/><span>│ 13. runEmbedded    │</span><br/><span>│ 14. PI Agent Loop  │</span><br/><span>└────────────────────┘</span><br/><span>        │</span><br/><span>        ▼ 第四章</span><br/><span>┌────────────────────┐</span><br/><span>│ 15. ReplyDispatcher│</span><br/><span>│ 16. 飞书送达       │</span><br/><span>└────────────────────┘</span><br/><span>        │</span><br/><span>        ▼</span><br/><span>飞书用户收到回复</span></p></section>
+<hr/>
+<h2 style="margin:1.45em 0 0.72em;padding:0.46em 0.72em;font-size:1.2em;line-height:1.45;color:#7a1f1f;font-weight:800;background:#fff2f2;border-left:4px solid #ef4444;border-radius:4px;">后记：可选的旁支</h2>
+<table style="width:100%;margin:16px 0;border-collapse:collapse;font-size:14px;background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(251,146,60,0.1);">
+<thead>
+<tr>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">旁支</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">触发条件</th>
+<th style="background:#fff2f2;color:#7a1f1f;font-weight:700;padding:12px 10px;border-bottom:2px solid #ef4444;text-align:left;">作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Compaction</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">对话太长，context window 使用率 &gt;80%</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">压缩历史对话，保留关键决策和结果，删除冗余细节</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Memory Flush</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">长期记忆需要保存</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">写入 MEMORY.md 文件，AI 记住关键信息</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Bootstrap</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">需要知识注入</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">加载项目关键文件（CLAUDE.md 等），注入项目知识</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Sandbox</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">安全隔离</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">限制文件访问范围，防止 AI 操作敏感路径</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Skills</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">技能加载</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">加载预定义的技能脚本，扩展 AI 能力</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Queue</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">多消息并发</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">同一群的消息按顺序排队处理，避免冲突</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">Fallback</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">模型失败</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;">按配置顺序逐个尝试备用模型</td>
+</tr>
+<tr>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">Block Streaming</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">实时显示</td>
+<td style="padding:10px;border-bottom:1px solid #ffe8e8;color:#2b2f38;background:#fff7f7;">流式输出文本，用户实时看到生成过程</td>
+</tr>
+</tbody>
+</table>
+<hr/>
+<h2 style="margin:1.45em 0 0.72em;padding:0.46em 0.72em;font-size:1.2em;line-height:1.45;color:#7a1f1f;font-weight:800;background:#fff2f2;border-left:4px solid #ef4444;border-radius:4px;">结语</h2>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">一条消息的旅程，看似简单的"发送-回复"，背后是：</p>
+<ul style="margin:0.98em 0;padding:0.82em 1em 0.82em 1.62em;line-height:1.86;color:#2d3445;background:#fffdf8;border-radius:8px;border:1px solid #ffe8c4;box-shadow:0 2px 10px rgba(251,146,60,0.08);list-style-position:outside;list-style-type:disc;"><li style="margin:0.28em 0;font-size:16px;line-height:1.82;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">16个核心步骤</strong></li><li style="margin:0.28em 0;font-size:16px;line-height:1.82;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">~3700行核心代码</strong>（runEmbeddedAttempt）</li><li style="margin:0.28em 0;font-size:16px;line-height:1.82;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">PI Agent Conversation Loop</strong>（对话循环）</li><li style="margin:0.28em 0;font-size:16px;line-height:1.82;text-indent:0;"><strong style="font-weight:800;color:#9a3412;background:#fff3d6;padding:0 2px;border-radius:3px;">流式输出 + 工具执行</strong>的混合模式</li></ul>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">3秒钟，16站，4章旅程。</p>
+<p style="margin:0.95em 0;line-height:1.92;font-size:16px;color:#2b2f38;text-align:justify;letter-spacing:0.01em;text-indent:0;">这就是 OpenClaw 一条消息的奇幻之旅。</p></section>

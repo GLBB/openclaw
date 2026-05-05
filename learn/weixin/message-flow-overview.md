@@ -196,9 +196,26 @@ runPreparedReply
         │   │
         │   ├── 静默规则：
         │   │   └── AI 可以不发消息吗？
-        │   │   ├── allow：返回特殊标记，不发送
-        │   │   ├── rewrite：发简短回复代替
-        │   │   └── disallow：必须回复
+        │   │   │
+        │   │   ├── 通过 silentToken（如 "NO_REPLY") 实现
+        │   │   │   └── AI 回复这个标记表示不需要发送消息
+        │   │   │
+        │   │   ├── policy: allow | disallow
+        │   │   │   ├── allow → 允许使用 NO_REPLY
+        │   │   │   └── disallow → 不允许使用 NO_REPLY
+        │   │   │
+        │   │   ├── rewrite: boolean
+        │   │   │   ├── true → 即使 NO_REPLY 也替换成简短文本
+        │   │   │   └── false → NO_REPLY 不发送任何内容
+        │   │   │
+        │   │   ├── 默认配置：
+        │   │   │   ├── 群聊：allow + false → 可不发消息，避免刷屏
+        │   │   │   ├── 私聊：disallow + true → 必须回复，无内容发简短文本
+        │   │   │   └── 内部：allow + false → 可不发消息
+        │   │   │
+        │   │   └── 使用场景：
+        │   │   ├── 群聊中只监听不回复 → 回复 NO_REPLY → 不发送
+        │   │   └── AI执行工具后无内容要说 → 回复 NO_REPLY → 不发送
         │   │
         │   └── 组装成 extraSystemPrompt → 和核心 System Prompt 合并
         │
@@ -298,12 +315,13 @@ runReplyAgent
         │   │
         │   └── AI 记住了关键信息
         │
-        ├── 【注册操作】生命周期管理
+        ├── 【注册操作】回复任务生命周期
         │   │
         │   ├── 创建 ReplyOperation
-        │   │   ├── 状态：queued → running → completed
+        │   │   ├── 状态：queued → preflight_compacting → memory_flushing → running → completed
+        │   │   ├── 提供 abortSignal 支持取消
         │   │   │
-        │   │   └── 其他组件可以监控状态
+        │   │   └── 其他组件可监控回复任务执行进度
         │
         ├── 【核心执行】调用 AI！
         │   │
